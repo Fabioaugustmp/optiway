@@ -1,0 +1,313 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="row">
+    <!-- Config Panel -->
+    <div class="col-md-4 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">🛠️ Configurar Roteiro</h5>
+            </div>
+            <div class="card-body">
+                <form id="searchForm">
+                    <div class="row g-2 mb-3">
+                        <div class="col">
+                            <label class="form-label">Adultos</label>
+                            <input type="number" class="form-control" name="pax_adults" value="1" min="1">
+                        </div>
+                        <div class="col">
+                            <label class="form-label">Crianças</label>
+                            <input type="number" class="form-control" name="pax_children" value="0" min="0">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Data Início</label>
+                        <input type="date" class="form-control" name="start_date" id="startDate" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Origens (sep. vírgula)</label>
+                        <input type="text" class="form-control" name="origin_cities" value="São Paulo" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Destinos (sep. vírgula)</label>
+                        <input type="text" class="form-control" name="destination_cities" value="Miami" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Cidades Obrigatórias</label>
+                        <input type="text" class="form-control" name="mandatory_cities" placeholder="Opcional">
+                    </div>
+
+                    <hr>
+                    <label class="form-label fw-bold">Prioridade</label>
+                    <div class="mb-3">
+                        <label class="form-label small">Custo vs Tempo</label>
+                        <input type="range" class="form-range" id="weightRange" min="0" max="100" value="70">
+                        <div class="d-flex justify-content-between small text-muted">
+                            <span>Mais Rápido</span>
+                            <span>Mais Barato</span>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100" id="btnSubmit">
+                        🚀 Otimizar Viagem
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Panel -->
+    <div class="col-md-8">
+        <!-- Initial State -->
+        <div id="welcomeState" class="text-center p-5 bg-white rounded shadow-sm">
+            <h2 class="text-primary">Bem-vindo, {{ user.full_name or user.email }}!</h2>
+            <p class="lead">Configure sua viagem ao lado para encontrar o melhor roteiro.</p>
+            <div class="mt-4">
+                <h5>Seus Últimos Roteiros</h5>
+                <div id="historyList" class="list-group list-group-flush text-start mt-3">
+                    <p class="text-muted text-center">Carregando histórico...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="text-center p-5 d-none">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+            <p class="mt-3 lead">Analisando milhares de voos e conexões...</p>
+        </div>
+
+        <!-- Results Container (Injected via JS) -->
+        <div id="resultsContainer" class="d-none"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Set default date
+    const today = new Date();
+    today.setDate(today.getDate() + 30);
+    document.getElementById('startDate').valueAsDate = today;
+
+    // Load History
+    async function loadHistory() {
+        try {
+            const res = await fetch('/users/history', {
+                headers: { 'Authorization': 'Bearer ' + getCookie('access_token') }
+            });
+            if (res.ok) {
+                const history = await res.json();
+                const list = document.getElementById('historyList');
+                list.innerHTML = '';
+                if(history.length === 0) {
+                    list.innerHTML = '<p class="text-center text-muted">Nenhuma busca recente.</p>';
+                    return;
+                }
+                history.forEach(h => {
+                    const item = document.createElement('a');
+                    item.className = 'list-group-item list-group-item-action';
+                    item.href = '#';
+                    item.innerHTML = `
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">${h.origin} ➝ ${h.destinations}</h6>
+                            <small>${new Date(h.created_at).toLocaleDateString()}</small>
+                        </div>
+                        <small class="text-muted">Partida: ${new Date(h.start_date).toLocaleDateString()}</small>
+                    `;
+                    list.appendChild(item);
+                });
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+    loadHistory();
+
+    // Form Submit
+    document.getElementById('searchForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        // UI Transition
+        document.getElementById('welcomeState').classList.add('d-none');
+        document.getElementById('resultsContainer').classList.add('d-none');
+        document.getElementById('loadingState').classList.remove('d-none');
+        document.getElementById('btnSubmit').disabled = true;
+
+        const formData = new FormData(e.target);
+
+        // Prepare Request
+        const weightCost = document.getElementById('weightRange').value / 100;
+        const reqBody = {
+            origin_cities: formData.get('origin_cities').split(',').map(s=>s.trim()),
+            destination_cities: formData.get('destination_cities').split(',').map(s=>s.trim()),
+            mandatory_cities: formData.get('mandatory_cities') ? formData.get('mandatory_cities').split(',').map(s=>s.trim()) : [],
+            pax_adults: parseInt(formData.get('pax_adults')),
+            pax_children: parseInt(formData.get('pax_children')),
+            start_date: formData.get('start_date') + "T00:00:00",
+            weight_cost: weightCost,
+            weight_time: 1 - weightCost
+        };
+
+        try {
+            const res = await fetch('/api/solve', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + getCookie('access_token')
+                },
+                body: JSON.stringify(reqBody)
+            });
+
+            if (res.ok) {
+                const result = await res.json();
+                renderResults(result);
+            } else {
+                alert("Erro ao processar: " + res.statusText);
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Erro de conexão.");
+        } finally {
+            document.getElementById('loadingState').classList.add('d-none');
+            document.getElementById('btnSubmit').disabled = false;
+        }
+    });
+
+    function renderResults(data) {
+        const container = document.getElementById('resultsContainer');
+        container.innerHTML = '';
+        container.classList.remove('d-none');
+
+        if (data.status !== 'Optimal') {
+            let msg = `<div class="alert alert-warning">Não foi possível encontrar um roteiro perfeito. Tente flexibilizar as datas ou cidades.</div>`;
+            if (data.warning_message) {
+                msg += `<div class="alert alert-info">💡 <strong>Sugestão:</strong> ${data.warning_message}</div>`;
+            }
+            container.innerHTML = msg;
+            return;
+        }
+
+        // Summary Card
+        const summary = `
+            <div class="card mb-4 border-success">
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col">
+                            <h3 class="text-success">R$ ${data.total_cost.toFixed(2)}</h3>
+                            <small>Custo Total Estimado</small>
+                        </div>
+                        <div class="col">
+                            <h3>${(data.total_duration / 60).toFixed(1)}h</h3>
+                            <small>Tempo Total em Voo</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Itinerary Table
+        let rows = '';
+        const mapSegments = [];
+
+        data.itinerary.forEach(leg => {
+            const flight = leg.flight;
+            rows += `
+                <tr>
+                    <td><strong>${leg.origin}</strong> <br> <small class="text-muted">➝ ${leg.destination}</small></td>
+                    <td>${flight.airline || 'N/A'}</td>
+                    <td>${leg.duration} min</td>
+                    <td>R$ ${leg.price.toFixed(2)}</td>
+                    <td><span class="badge bg-secondary">${flight.stops} paradas</span></td>
+                </tr>
+            `;
+
+            // Collect backend coords
+            if (leg.origin_coords && leg.dest_coords) {
+                mapSegments.push({
+                    from_name: leg.origin,
+                    to_name: leg.destination,
+                    from: leg.origin_coords,
+                    to: leg.dest_coords
+                });
+            }
+        });
+
+        const table = `
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white"><h5>📅 Itinerário Detalhado</h5></div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Rota</th>
+                                <th>Cia Aérea</th>
+                                <th>Duração</th>
+                                <th>Preço</th>
+                                <th>Detalhes</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+
+        // Map Container
+        const mapHtml = `
+            <div class="card shadow-sm">
+                <div class="card-header bg-white"><h5>🗺️ Visualização no Mapa</h5></div>
+                <div class="card-body p-0">
+                    <div id="map" style="height: 400px; width: 100%;"></div>
+                </div>
+            </div>
+        `;
+
+        container.innerHTML = summary + table + mapHtml;
+
+        // Init Map
+        initMap(mapSegments);
+    }
+
+    // Helper: Cookie
+    function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+    }
+
+    // Map Logic (Leaflet)
+    function initMap(segments) {
+        if (typeof L === 'undefined') return;
+
+        const map = L.map('map').setView([0, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        const allPoints = [];
+
+        segments.forEach(seg => {
+            // Markers
+            L.marker(seg.from).addTo(map).bindPopup(`<b>${seg.from_name}</b>`);
+            L.marker(seg.to).addTo(map).bindPopup(`<b>${seg.to_name}</b>`);
+
+            // Path
+            const latlngs = [seg.from, seg.to];
+            L.polyline(latlngs, {color: 'red', weight: 3}).addTo(map);
+
+            allPoints.push(seg.from);
+            allPoints.push(seg.to);
+        });
+
+        if (allPoints.length > 0) {
+            map.fitBounds(allPoints);
+        }
+    }
+</script>
+<!-- Load Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% endblock %}

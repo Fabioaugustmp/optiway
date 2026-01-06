@@ -1,3 +1,11 @@
+fastapi
+uvicorn
+sqlalchemy
+passlib[bcrypt]
+python-jose[cryptography]
+python-multipart
+jinja2
+httpx
 streamlit
 pandas
 numpy

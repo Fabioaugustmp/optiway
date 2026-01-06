@@ -1,0 +1,41 @@
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Float, DateTime, Text
+from sqlalchemy.orm import relationship
+from datetime import datetime
+from app.db.database import Base
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+    full_name = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+    role = Column(String, default="user") # user, admin
+
+    searches = relationship("SearchHistory", back_populates="user")
+
+class SearchHistory(Base):
+    __tablename__ = "search_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    origin = Column(String)
+    destinations = Column(String) # Comma separated
+    start_date = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="searches")
+    itineraries = relationship("Itinerary", back_populates="search")
+
+class Itinerary(Base):
+    __tablename__ = "itineraries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    search_id = Column(Integer, ForeignKey("search_history.id"))
+    total_cost = Column(Float)
+    total_duration = Column(Integer) # Minutes
+    details_json = Column(Text) # JSON string of the full result
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    search = relationship("SearchHistory", back_populates="itineraries")

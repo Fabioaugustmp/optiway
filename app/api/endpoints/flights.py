@@ -1,0 +1,88 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from typing import List
+from app.db.database import get_db
+from app.db.models import User, SearchHistory, Itinerary
+from app.core.security import get_current_user
+from app.schemas.travel import Flight, TravelRequest, SolverResult
+from app.services.crawler_service import get_crawler
+from app.services.solver_service import solve_itinerary
+from app.services.geo_service import find_nearest_airport, suggest_ground_transport, generate_ground_segments
+from app.core.config import settings
+import json
+
+router = APIRouter()
+
+@router.post("/solve", response_model=SolverResult)
+def solve_trip(
+    request: TravelRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # 1. Fetch Flights
+    crawler = get_crawler(
+        provider="Amadeus API" if settings.AMADEUS_API_KEY else "Mock Data",
+        key=settings.AMADEUS_API_KEY,
+        secret=settings.AMADEUS_API_SECRET
+    )
+
+    all_cities = list(set(request.origin_cities + request.destination_cities + request.mandatory_cities))
+    flights = []
+
+    # Mesh crawl
+    for orig in all_cities:
+        dests = [c for c in all_cities if c != orig]
+        if dests:
+            flights.extend(crawler.fetch_flights(orig, dests, request.start_date, request.pax_adults, request.pax_children))
+
+    # Inject Ground Segments
+    ground_legs = generate_ground_segments(all_cities, request.start_date)
+    flights.extend(ground_legs)
+
+    # 2. Solver
+    hotels = crawler.fetch_hotels(all_cities)
+    cars = crawler.fetch_car_rentals(all_cities)
+
+    result = solve_itinerary(request, flights, hotels, cars)
+
+    # 3. Handle Failures / Nearest Airport Logic
+    suggestion_msg = None
+    if result.status != "Optimal":
+        # Attempt to suggest alternatives for destinations
+        suggestions = []
+        for dest in request.destination_cities:
+            inbound = [f for f in flights if f.destination == dest]
+            if not inbound:
+                nearest = find_nearest_airport(dest)
+                if nearest:
+                    near_city, dist = nearest
+                    ground_transport = suggest_ground_transport(near_city, dest, dist)
+                    suggestions.append(f"Fly to {near_city} and take ground transport ({ground_transport})")
+
+        if suggestions:
+            suggestion_msg = " | ".join(suggestions)
+            result.warning_message = suggestion_msg
+
+    # 4. Save History
+    search_rec = SearchHistory(
+        user_id=current_user.id,
+        origin=",".join(request.origin_cities),
+        destinations=",".join(request.destination_cities),
+        start_date=request.start_date
+    )
+    db.add(search_rec)
+    db.commit()
+    db.refresh(search_rec)
+
+    # Save Itinerary
+    if result.status == "Optimal":
+        itinerary_rec = Itinerary(
+            search_id=search_rec.id,
+            total_cost=result.total_cost,
+            total_duration=result.total_duration,
+            details_json=json.dumps([leg.dict() for leg in result.itinerary], default=str)
+        )
+        db.add(itinerary_rec)
+        db.commit()
+
+    return result
