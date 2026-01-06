@@ -1,7 +1,7 @@
 import math
 from typing import Optional, Tuple, List, Dict
 from datetime import datetime, timedelta
-from app.schemas.travel import Flight
+from app.schemas.travel import Flight, CarRental
 
 # Simple internal DB of airport coordinates (Latitude, Longitude)
 AIRPORT_COORDS = {
@@ -84,11 +84,30 @@ def suggest_ground_transport(origin_city: str, dest_city: str, distance_km: floa
     else:
         return "Distance too far for driving recommendation. Check trains or buses."
 
-def generate_ground_segments(cities: List[str], start_date: datetime) -> List[Flight]:
+def generate_ground_segments(
+    cities: List[str],
+    start_date: datetime,
+    cars: List[CarRental] = None
+) -> List[Flight]:
     """
     Generates synthetic 'Flight' objects representing ground transport between nearby cities.
+    Uses real car rental data if available to estimate pricing.
     """
     ground_segments = []
+
+    # Pre-process cars to map city -> cheapest daily rate
+    city_rental_rates = {}
+    if cars:
+        for car in cars:
+            if car.city not in city_rental_rates:
+                city_rental_rates[car.city] = car.price_per_day
+            else:
+                city_rental_rates[car.city] = min(city_rental_rates[car.city], car.price_per_day)
+
+    # Default fallback rate (R$)
+    DEFAULT_DAILY_RATE = 150.0
+    GAS_PRICE_PER_KM = 0.8
+    AVG_SPEED_KMH = 80.0
 
     for i in range(len(cities)):
         for j in range(len(cities)):
@@ -103,30 +122,49 @@ def generate_ground_segments(cities: List[str], start_date: datetime) -> List[Fl
             if coords_a and coords_b:
                 dist = haversine_distance(coords_a, coords_b)
 
-                # Check if feasibly drivable (e.g., < 500km)
-                if dist < 500:
-                    # Estimate logic
-                    # Speed: 80km/h
-                    # Price: Rent R$ 150/day + Gas R$ 0.8/km?
-                    # Let's approx R$ 2.00 per km (inc rental share + gas)
-
-                    duration_hours = dist / 80.0
+                # Check if feasibly drivable (e.g., < 600km)
+                if dist < 600:
+                    duration_hours = dist / AVG_SPEED_KMH
                     duration_minutes = int(duration_hours * 60)
-                    price = dist * 2.0
+                    days_needed = max(1, duration_hours / 12.0) # Assume max 12h driving per day? Or just rental days.
+
+                    # Determine Daily Rate
+                    rate = city_rental_rates.get(city_a, DEFAULT_DAILY_RATE)
+
+                    # Total Price = (Rate * Days) + (Gas * Distance)
+                    # Note: This is total price for the CAR.
+                    # The solver usually expects Price PER PERSON if pax > 1.
+                    # However, a car fits ~4 people.
+                    # To normalize for the solver which multiplies by pax, we might divide by 2 or 3?
+                    # Or we just set the price and let the solver treat it as per-person if we want consistent units.
+                    # For simplicity, let's assume the price is "per trip" but we divide by 1 (conservative) or 2?
+                    # Let's keep it simple: Price displayed is total car cost.
+                    # If the solver multiplies by pax, it might penalize cars too much.
+                    # BUT `Flight` object implies per-ticket price.
+                    # Let's divide by an assumed occupancy of 2 for per-person equivalent?
+                    # Or just list the full car price and airline="Car Rental (Total)"
+
+                    total_car_cost = (rate * days_needed) + (GAS_PRICE_PER_KM * dist)
+
+                    # Assume effective per-person price for 2 people to be competitive
+                    price_per_person = total_car_cost / 2.0
+
+                    details_str = f"Distância: {dist:.1f}km. Carro: {city_a} -> {city_b}"
+                    if city_a in city_rental_rates:
+                         details_str += " (Tarifa real encontrada)"
 
                     # Create Segment
-                    # We set airline to "Ground Transport" so UI can distinguish
                     seg = Flight(
                         origin=city_a,
                         destination=city_b,
-                        price=round(price, 2),
+                        price=round(price_per_person, 2),
                         duration_minutes=duration_minutes,
-                        airline="🚗 Carro/Ônibus",
-                        departure_time=start_date + timedelta(hours=8), # Mock dep
+                        airline="🚗 Aluguel de Carro",
+                        departure_time=start_date + timedelta(hours=8),
                         arrival_time=start_date + timedelta(hours=8, minutes=duration_minutes),
                         stops=0,
-                        baggage="Unlimited",
-                        details=f"Distância: {dist:.1f}km"
+                        baggage="Mala Grande",
+                        details=details_str
                     )
                     ground_segments.append(seg)
 

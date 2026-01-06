@@ -19,7 +19,7 @@ def solve_trip(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # 1. Fetch Flights
+    # 1. Init Crawler
     crawler = get_crawler(
         provider="Amadeus API" if settings.AMADEUS_API_KEY else "Mock Data",
         key=settings.AMADEUS_API_KEY,
@@ -29,23 +29,26 @@ def solve_trip(
     all_cities = list(set(request.origin_cities + request.destination_cities + request.mandatory_cities))
     flights = []
 
-    # Mesh crawl
+    # 2. Fetch Flights
     for orig in all_cities:
         dests = [c for c in all_cities if c != orig]
         if dests:
             flights.extend(crawler.fetch_flights(orig, dests, request.start_date, request.pax_adults, request.pax_children))
 
-    # Inject Ground Segments
-    ground_legs = generate_ground_segments(all_cities, request.start_date)
-    flights.extend(ground_legs)
-
-    # 2. Solver
-    hotels = crawler.fetch_hotels(all_cities)
+    # 3. Fetch Car Rentals (Moved up to support ground segment generation)
     cars = crawler.fetch_car_rentals(all_cities)
 
+    # 4. Inject Ground Segments using Real Car Data
+    ground_legs = generate_ground_segments(all_cities, request.start_date, cars=cars)
+    flights.extend(ground_legs)
+
+    # 5. Fetch Hotels
+    hotels = crawler.fetch_hotels(all_cities)
+
+    # 6. Solve
     result = solve_itinerary(request, flights, hotels, cars)
 
-    # 3. Handle Failures / Nearest Airport Logic
+    # 7. Handle Failures / Nearest Airport Logic
     suggestion_msg = None
     if result.status != "Optimal":
         # Attempt to suggest alternatives for destinations
@@ -63,7 +66,7 @@ def solve_trip(
             suggestion_msg = " | ".join(suggestions)
             result.warning_message = suggestion_msg
 
-    # 4. Save History
+    # 8. Save History
     search_rec = SearchHistory(
         user_id=current_user.id,
         origin=",".join(request.origin_cities),
