@@ -19,4 +19,3 @@ amadeus
 isodate
 python-dotenv
 requests
-email-validator
