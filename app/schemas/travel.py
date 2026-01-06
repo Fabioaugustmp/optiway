@@ -67,3 +67,4 @@ class SolverResult(BaseModel):
     total_cost: float
     total_duration: int
     warning_message: Optional[str] = None
+    alternatives: Optional[dict] = None # Key: "Origin-Destination", Value: List[Flight]

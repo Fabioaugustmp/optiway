@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from app.db.database import get_db
-from app.db.models import User, SearchHistory, Itinerary
+from app.db.models import User, SearchHistory, Itinerary, FlightOption
 from app.core.security import get_current_user
 from app.schemas.travel import Flight, TravelRequest, SolverResult
 from app.services.crawler_service import get_crawler
@@ -74,6 +74,30 @@ def solve_trip(
     db.commit()
     db.refresh(search_rec)
 
+    # Save All Fetched Flights (Cache)
+    saved_flight_keys = set()
+    for f in flights:
+        if isinstance(f, str): continue
+        if hasattr(f, 'origin'):
+            f_key = f"{f.origin}-{f.destination}-{f.airline}-{f.price}"
+            if f_key in saved_flight_keys:
+                continue
+            saved_flight_keys.add(f_key)
+
+            fo = FlightOption(
+                search_id=search_rec.id,
+                origin=f.origin,
+                destination=f.destination,
+                airline=f.airline,
+                price=f.price,
+                duration=f.duration_minutes,
+                stops=f.stops,
+                departure_time=f.departure_time,
+                arrival_time=f.arrival_time
+            )
+            db.add(fo)
+    db.commit()
+
     # Save Itinerary
     if result.status == "Optimal":
         itinerary_rec = Itinerary(
@@ -84,5 +108,16 @@ def solve_trip(
         )
         db.add(itinerary_rec)
         db.commit()
+
+        # Prepare Alternatives Grouped by Leg
+        alternatives_map = {}
+        for f in flights:
+            if hasattr(f, 'origin'):
+                key = f"{f.origin}-{f.destination}"
+                if key not in alternatives_map:
+                    alternatives_map[key] = []
+                alternatives_map[key].append(f)
+        
+        result.alternatives = alternatives_map
 
     return result

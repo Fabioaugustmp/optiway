@@ -39,3 +39,22 @@ class Itinerary(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     search = relationship("SearchHistory", back_populates="itineraries")
+
+class FlightOption(Base):
+    __tablename__ = "flight_options"
+
+    id = Column(Integer, primary_key=True, index=True)
+    search_id = Column(Integer, ForeignKey("search_history.id"))
+    origin = Column(String)
+    destination = Column(String)
+    airline = Column(String)
+    price = Column(Float)
+    duration = Column(Integer)
+    stops = Column(Integer)
+    departure_time = Column(DateTime)
+    arrival_time = Column(DateTime)
+    
+    search = relationship("SearchHistory", back_populates="flights")
+
+# Add the relationship to SearchHistory as well
+SearchHistory.flights = relationship("FlightOption", back_populates="search")
