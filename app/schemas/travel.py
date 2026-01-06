@@ -47,6 +47,8 @@ class TravelRequest(BaseModel):
     pax_adults: int
     pax_children: int
     start_date: datetime
+    return_date: Optional[datetime] = None
+    is_round_trip: bool = False
     weight_cost: float
     weight_time: float
     allow_open_jaw: bool = True
@@ -68,3 +70,4 @@ class SolverResult(BaseModel):
     total_duration: int
     warning_message: Optional[str] = None
     alternatives: Optional[dict] = None # Key: "Origin-Destination", Value: List[Flight]
+    cost_breakdown: Optional[dict] = None

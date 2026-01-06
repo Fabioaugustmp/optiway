@@ -500,15 +500,8 @@ class AmadeusCrawler(BaseCrawler):
             "Paris": "CDG",
             "London": "LHR",
             "Uberlândia": "UDI",
-            "Ituiutaba": "UDI" # Map Ituiutaba to UDI for flight search fallback if needed, or keep generic to fail and rely on car.
-            # Actually, _get_iata is used for FLIGHT search. Ituiutaba has no flights.
-            # If I return "UDI", it will search flights to UDI effectively.
-            # But the Crawler logic in flights.py "flights.extend(crawler.fetch...)" uses ORIG and DEST names.
-            # If I fetch(SP, Ituiutaba), crawler calls _get_iata(Ituiutaba). If returns UDI, it searches SP->UDI.
-            # The FLIGHT object returned will say Dest=Ituiutaba.
-            # This is one way to handle it: "Implicit Airport Mapping".
-            # BUT my expansion logic in flights.py is cleaner: explicitly add UDI to the graph.
-            # So here, I can just leave Ituiutaba to default (GRU) or specific.
-            # Let's map it to UDI just in case the direct expansion misses.
+            "Ituiutaba": "UDI",
+            "Goiânia": "GYN", "Goiania": "GYN",
+            "Aparecida de Goiânia": "GYN" # Fallback IATA for flight search if passed directly
         }
         return mapping.get(city_name, "GRU") # Default/Fallback

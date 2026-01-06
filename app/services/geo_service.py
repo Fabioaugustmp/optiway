@@ -17,6 +17,8 @@ AIRPORT_COORDS = {
     "CDG": (49.0097, 2.5479),    # Paris
     "UDI": (-18.8836, -48.2253), # Uberlandia
     "ITUIUTABA_LOC": (-18.9772, -49.4622), # Ituiutaba (City)
+    "GYN": (-16.6323, -49.2183), # Goiania
+    "APARECIDA_LOC": (-16.8227, -49.2486), # Aparecida de Goiania
     # Add more as needed or use an external library
 }
 
@@ -31,7 +33,9 @@ CITY_TO_IATA = {
     "London": "LHR",
     "Paris": "CDG",
     "Uberlândia": "UDI",
-    "Ituiutaba": "ITUIUTABA_LOC"
+    "Ituiutaba": "ITUIUTABA_LOC",
+    "Goiânia": "GYN",
+    "Aparecida de Goiânia": "APARECIDA_LOC"
 }
 
 def haversine_distance(coord1: Tuple[float, float], coord2: Tuple[float, float]) -> float:

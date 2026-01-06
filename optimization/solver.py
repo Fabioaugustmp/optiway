@@ -111,34 +111,63 @@ def solve_itinerary(
     # Given we allow CHOOSING an origin from a list, and a destination from a list.
     
     # Create binary variables for being Start and End
+    # Constraints
+    
+    # 1. Start/End Constraints
     is_start = LpVariable.dicts("is_start", range(n), cat='Binary')
     is_end = LpVariable.dicts("is_end", range(n), cat='Binary')
     
-    # Only allowed cities can be start/end
+    # Force start to be one of the origin_cities
     for i, city in enumerate(all_cities):
         if city not in request.origin_cities:
             prob += is_start[i] == 0
-        if city not in request.destination_cities:
-            prob += is_end[i] == 0
+
+    # End Constraint logic
+    if request.is_round_trip:
+        # If Round Trip, End City MUST be the same as Start City?
+        # Or at least one of the Origin Cities?
+        # Let's enforce that End City must be in origin_cities.
+        # AND we must ensure a cycle? Standard TSP uses sum(x_ij)=1 for all if cycle.
+        # But we surely have intermediate nodes that are visited once.
+        # Let's rely on Flow Conservation with Start/End being same set.
+        
+        for i, city in enumerate(all_cities):
+             if city not in request.origin_cities:
+                 prob += is_end[i] == 0
+                 
+        # Additional constraint: The specific City picked as Start must be the same as End?
+        # Usually yes: SP -> Rio -> SP.
+        # prob += is_start[i] == is_end[i] for all i
+        for i in range(n):
+            prob += is_start[i] == is_end[i]
             
+    else:
+        # One Way: End must be in destination_cities
+        for i, city in enumerate(all_cities):
+             if city not in request.destination_cities:
+                 prob += is_end[i] == 0
+
     # Exactly one start and one end
     prob += lpSum([is_start[i] for i in range(n)]) == 1
     prob += lpSum([is_end[i] for i in range(n)]) == 1
-    
-    if not request.allow_open_jaw:
-        # Start city must be same as End city? 
-        # Usually Open Jaw means Start != End allowed.
-        # Closed Jaw means Start == End.
-        # So if Allow Open Jaw = False, then is_start[i] == is_end[i]. 
-        # But wait, physically you "arrive" at start at the end?
-        # TSP Cycle means Return. Path means One Way.
-        # Assuming "Travel" implies round trip or returning home?
-        # Let's assume standard TSP Cycle for "Closed", and Path for "Open-Jaw".
-        pass
         
     # Flow Constraints
     for k in range(n):
-        # Outflow - Inflow
+        # Round Trip: Start Node has Out=1, In=1 (if cycle) but our formulation treats Start/End separate?
+        # If we use is_start/is_end logic:
+        # Start Node: Out - In = 1
+        # End Node: Out - In = -1
+        # Interm: Out - In = 0
+        # If Start == End (Round Trip), then Out - In = 0 for ALL nodes?
+        # Implies a cycle. 
+        # But we need to Break the Cycle logic for "Start" to "End".
+        # Actually for Round Trip, we want path Start -> ... -> End, where Start and End refer to the same city physically compount,
+        # but in graph theory to avoiding a simple 0-cost loop, we usually duplicate the node or just standard Flow conservation?
+        
+        # Let's keep logic: Out - In = Start - End
+        # If Start==End, then Out=In for all. Which allows disjoint cycles.
+        # We need MTZ to prevent disjoint sub-tours.
+        
         prob += lpSum([x[k, j] for j in range(n) if k != j]) - lpSum([x[i, k] for i in range(n) if i != k]) == is_start[k] - is_end[k]
 
     # Connectivity / MTZ
@@ -157,6 +186,13 @@ def solve_itinerary(
     total_cost_val = 0.0
     total_duration_val = 0
     
+    # Cost Breakdown
+    breakdown = {
+        "flight": 0.0,
+        "car": 0.0,
+        "hotel": 0.0
+    }
+    
     if status == 'Optimal':
         # Find start node
         start_node = -1
@@ -168,19 +204,36 @@ def solve_itinerary(
         current = start_node
         visited = {current}
         
-        while True:
+        # Guard against infinite loops if solver allows cycles (Round Trip)
+        # For Round Trip, we expect to visit Start again at the very end.
+        
+        steps = 0
+        while steps < n + 5: # Safety limit
             # Find next hop
             next_hop = -1
+            found_next = False
             for j in range(n):
                 if current != j and value(x[current, j]) == 1:
                     next_hop = j
+                    found_next = True
                     break
             
-            if next_hop != -1:
+            if found_next:
                 f = flight_data.get((current, next_hop))
-                # Fallback if specific flight obj missing (shouldn't happen if cost valid)
                 price = cost_matrix[current, next_hop] if f is None else f.price
                 duration = time_matrix[current, next_hop] if f is None else f.duration_minutes
+                
+                leg_cost = price
+                
+                # Check Carrier Type for breakdown
+                airline_lower = f.airline.lower() if f else ""
+                if "carro" in airline_lower or "rent" in airline_lower:
+                    breakdown["car"] += leg_cost
+                else:
+                    breakdown["flight"] += leg_cost
+                
+                # Add implicit hotel cost if spending time? 
+                # Currently we only track movement costs.
                 
                 itinerary.append({
                     "from": all_cities[current],
@@ -193,11 +246,17 @@ def solve_itinerary(
                 total_cost_val += price
                 total_duration_val += duration
                 current = next_hop
-                visited.add(current)
                 
-                # If we hit the end node designated by solver
+                steps += 1
+                
+                # Stopping Condition
+                # If we reached the designated End node
                 if value(is_end[current]) == 1:
-                    break
+                    # If Round Trip, we must ensure we haven't just started (steps > 0)
+                    if request.is_round_trip:
+                         break
+                    else:
+                         break
             else:
                 break
                 
@@ -205,6 +264,7 @@ def solve_itinerary(
         "status": status,
         "itinerary": itinerary,
         "total_cost": total_cost_val,
-        "total_price": total_cost_val, # Alias for compatibility
-        "total_duration": total_duration_val
+        "total_price": total_cost_val,
+        "total_duration": total_duration_val,
+        "cost_breakdown": breakdown
     }

@@ -27,6 +27,17 @@
                     </div>
 
                     <div class="mb-3">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="isRoundTrip" name="is_round_trip">
+                            <label class="form-check-label" for="isRoundTrip">Ida e Volta</label>
+                        </div>
+                        <div id="returnDateDiv" class="d-none">
+                            <label class="form-label">Data de Retorno</label>
+                            <input type="date" class="form-control" name="return_date" id="returnDate">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label">Origens (sep. vírgula)</label>
                         <input type="text" class="form-control" name="origin_cities" value="São Paulo" required>
                     </div>
@@ -127,6 +138,20 @@
     }
     loadHistory();
 
+    // Toggle Return Date
+    const chkRound = document.getElementById('isRoundTrip');
+    chkRound.addEventListener('change', () => {
+        const div = document.getElementById('returnDateDiv');
+        const input = document.getElementById('returnDate');
+        if (chkRound.checked) {
+            div.classList.remove('d-none');
+            input.required = true;
+        } else {
+            div.classList.add('d-none');
+            input.required = false;
+        }
+    });
+
     // Form Submit
     document.getElementById('searchForm').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -141,6 +166,7 @@
 
         // Prepare Request
         const weightCost = document.getElementById('weightRange').value / 100;
+
         const reqBody = {
             origin_cities: formData.get('origin_cities').split(',').map(s => s.trim()),
             destination_cities: formData.get('destination_cities').split(',').map(s => s.trim()),
@@ -149,8 +175,13 @@
             pax_children: parseInt(formData.get('pax_children')),
             start_date: formData.get('start_date') + "T00:00:00",
             weight_cost: weightCost,
-            weight_time: 1 - weightCost
+            weight_time: 1 - weightCost,
+            is_round_trip: chkRound.checked
         };
+
+        if (chkRound.checked && formData.get('return_date')) {
+            reqBody.return_date = formData.get('return_date') + "T00:00:00";
+        }
 
         try {
             const res = await fetch('/api/solve', {
@@ -191,18 +222,35 @@
             return;
         }
 
+        // Cost Breakdown Logic
+        let flightCost = 0;
+        let carCost = 0;
+        if (data.cost_breakdown) {
+            flightCost = data.cost_breakdown.flight || 0;
+            carCost = data.cost_breakdown.car || 0;
+        } else {
+            // Fallback estimation if not provided
+            flightCost = data.total_cost;
+        }
+
         // Summary Card
         const summary = `
             <div class="card mb-4 border-success">
                 <div class="card-body">
-                    <div class="row text-center">
+                    <div class="row text-center align-items-center">
                         <div class="col">
                             <h3 class="text-success">R$ ${data.total_cost.toFixed(2)}</h3>
-                            <small>Custo Total Estimado</small>
+                            <small class="text-muted">Custo Total Estimado</small>
+                        </div>
+                        <div class="col border-start border-end">
+                            <ul class="list-unstyled text-start d-inline-block small mb-0">
+                                <li>✈️ Aéreo: R$ ${flightCost.toFixed(2)}</li>
+                                <li>🚗 Carro: R$ ${carCost.toFixed(2)}</li>
+                            </ul>
                         </div>
                         <div class="col">
                             <h3>${(data.total_duration / 60).toFixed(1)}h</h3>
-                            <small>Tempo Total em Voo</small>
+                            <small>Tempo Total</small>
                         </div>
                     </div>
                 </div>
@@ -214,14 +262,14 @@
         const mapSegments = [];
 
         data.itinerary.forEach(leg => {
-            const flight = leg.flight;
+            const flight = leg.flight || {};
             rows += `
                 <tr>
                     <td><strong>${leg.origin}</strong> <br> <small class="text-muted">➝ ${leg.destination}</small></td>
                     <td>${flight.airline || 'N/A'}</td>
                     <td>${leg.duration} min</td>
                     <td>R$ ${leg.price.toFixed(2)}</td>
-                    <td><span class="badge bg-secondary">${flight.stops} paradas</span></td>
+                    <td><span class="badge bg-secondary">${flight.stops || 0} paradas</span></td>
                 </tr>
             `;
 
@@ -232,7 +280,7 @@
                     to_name: leg.destination,
                     from: leg.origin_coords,
                     to: leg.dest_coords,
-                    airline: flight.airline
+                    airline: flight.airline || 'N/A'
                 });
             }
         });
