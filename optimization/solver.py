@@ -146,7 +146,8 @@ def solve_itinerary(
     # Reconstruct
     status = LpStatus[prob.status]
     itinerary = []
-    total_cost_val = 0
+    total_cost_val = 0.0
+    total_duration_val = 0
     
     if status == 'Optimal':
         # Find start node
@@ -171,14 +172,18 @@ def solve_itinerary(
                 f = flight_data.get((current, next_hop))
                 # Fallback if specific flight obj missing (shouldn't happen if cost valid)
                 price = cost_matrix[current, next_hop] if f is None else f.price
+                duration = time_matrix[current, next_hop] if f is None else f.duration_minutes
                 
                 itinerary.append({
                     "from": all_cities[current],
                     "to": all_cities[next_hop],
                     "flight": f,
-                    "price": price
+                    "price": price,
+                    "duration": duration,
+                    "price_formatted": f"R$ {price:.2f}"
                 })
                 total_cost_val += price
+                total_duration_val += duration
                 current = next_hop
                 visited.add(current)
                 
@@ -191,5 +196,7 @@ def solve_itinerary(
     return {
         "status": status,
         "itinerary": itinerary,
-        "total_cost": total_cost_val
+        "total_cost": total_cost_val,
+        "total_price": total_cost_val, # Alias for compatibility
+        "total_duration": total_duration_val
     }

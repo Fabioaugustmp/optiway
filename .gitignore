@@ -2,3 +2,4 @@
 data/__pycache__/*
 data/__pycache__/crawler.cpython-314.pyc
 /data/__pycache__
+/optimization

@@ -64,11 +64,23 @@ if provider == "Amadeus API":
     amadeus_key = st.sidebar.text_input("Amadeus API Key", value=amadeus_key)
     amadeus_secret = st.sidebar.text_input("Amadeus API Secret", value=amadeus_secret, type="password")
     use_prod = st.sidebar.checkbox("Usar Ambiente de Produção", value=False)
+    
+    
+    # Inputs moved to global scope below
 
 # Limpeza de input
 origens = [c.strip() for c in origens if c.strip()]
 destinos = [c.strip() for c in destinos if c.strip()]
 todas_cidades = list(set(origens + destinos + obrigatorias))
+
+# --- Cost Parameters (Global) ---
+st.sidebar.markdown("---")
+st.sidebar.subheader("💰 Estimativa de Custos Extras")
+custo_hotel = st.sidebar.number_input("Média Hotel/Noite (R$)", min_value=0.0, value=300.0, step=50.0)
+custo_carro = st.sidebar.number_input("Aluguel Carro/Dia (R$)", min_value=0.0, value=150.0, step=10.0)
+custo_diario = st.sidebar.number_input("Gasto Diário/Pessoa (R$)", min_value=0.0, value=200.0, step=20.0)
+dias_por_cidade = st.sidebar.number_input("Dias por Cidade (Est.)", min_value=1, value=3)
+alugar_carro = st.sidebar.checkbox("Alugar Carro?", value=False)
 
 # --- MAIN ---
 st.title("🌍 Otimizador de Viagens Multi-Destino")
@@ -114,7 +126,7 @@ if st.button("🚀 Calcular Melhor Roteiro", type="primary"):
                 # For safety, remove self from dests
                 dests = [c for c in todas_cidades if c != orig_city]
                 if dests:
-                    new_flights = crawler.fetch_flights(orig_city, dests, datetime.combine(data_inicio, datetime.min.time()), adults=pax_adultos)
+                    new_flights = crawler.fetch_flights(orig_city, dests, datetime.combine(data_inicio, datetime.min.time()), adults=pax_adultos, children=pax_criancas)
                     flights.extend(new_flights)
             except Exception as e:
                 print(f"Error fetching from {orig_city}: {e}")
@@ -126,7 +138,7 @@ if st.button("🚀 Calcular Melhor Roteiro", type="primary"):
              for orig_city in todas_cidades:
                 dests = [c for c in todas_cidades if c != orig_city]
                 if dests:
-                    flights.extend(crawler.fetch_flights(orig_city, dests, datetime.combine(data_inicio, datetime.min.time())))
+                    flights.extend(crawler.fetch_flights(orig_city, dests, datetime.combine(data_inicio, datetime.min.time()), adults=pax_adultos, children=pax_criancas))
 
         hotels = crawler.fetch_hotels(todas_cidades)
         cars = crawler.fetch_car_rentals(todas_cidades)
@@ -161,14 +173,46 @@ if st.button("🚀 Calcular Melhor Roteiro", type="primary"):
 
     # --- RESULTADOS ---
     if result["status"] == "Optimal":
-        st.success("Roteiro Otimizado Encontrado!")
+        # --- CÁLCULO DE CUSTO TOTAL ---
+        n_cidades_destino = len(destinos) + len(obrigatorias)
+        dias_totais = dias_por_cidade * n_cidades_destino
         
-        # KPIS
-        col1, col2, col3 = st.columns(3)
-        total = result['total_cost']
-        col1.metric("Custo Total Estimado", f"R$ {total:,.2f}")
-        col2.metric("Número de Trechos", len(result['itinerary']))
-        col3.metric("Status Otimização", "Ótimo Global")
+        # Flight cost from result (assuming 'total_price' key or derived from itinerary)
+        # Verify if result has 'total_price', else sum it up
+        custo_voos = 0.0
+        for leg in result['itinerary']:
+            if 'price' in leg: # Price might be in 'flight' object or top level
+                 # Check structure: leg['flight'].price covers it?
+                 # Leg structure in solver output usually copies flight details
+                 # Let's rely on result['total_cost'] if it only tracks FLIGHT cost?
+                 # No, result['total_cost'] is the OBJECTIVE FUNCTION value (mixed cost+time).
+                 # We need pure money cost.
+                 pass
+
+        # Recalculate pure flight cost from itinerary
+        custo_voos = sum([leg['flight'].price for leg in result['itinerary']])
+
+        custo_hospedagem = custo_hotel * dias_totais
+        custo_alimentacao = custo_diario * dias_totais * (pax_adultos + pax_criancas)
+        custo_transporte = (custo_carro * dias_totais) if alugar_carro else 0
+        
+        custo_total_viagem = custo_voos + custo_hospedagem + custo_alimentacao + custo_transporte
+
+        st.success(f"✅ Roteiro Otimizado Encontrado!")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Custo Total (Est.)", f"R$ {custo_total_viagem:,.2f}")
+        col2.metric("Custo Voos", f"R$ {custo_voos:,.2f}")
+        col3.metric("Tempo Voos", f"{result['total_duration']} min")
+        col4.metric("Dias Totais", f"{dias_totais} dias")
+        
+        with st.expander("💸 Detalhamento dos Custos"):
+            st.write(f"- **Voos**: R$ {custo_voos:,.2f}")
+            st.write(f"- **Hospedagem ({dias_totais} noites)**: R$ {custo_hospedagem:,.2f}")
+            st.write(f"- **Alimentação/Extras**: R$ {custo_alimentacao:,.2f}")
+            if alugar_carro:
+                st.write(f"- **Carro ({dias_totais} dias)**: R$ {custo_transporte:,.2f}")
+            st.info("Obs: Custos de hotel/carro são estimativas baseadas nos seus inputs.")
         
         # Tabela Detalhada
         st.subheader("🗓️ Detalhes do Itinerário")

@@ -21,7 +21,8 @@ except ImportError:
 
 class BaseCrawler(ABC):
     @abstractmethod
-    def fetch_flights(self, origin: str, destinations: List[str], date: datetime, adults: int = 1) -> List[Flight]:
+    @abstractmethod
+    def fetch_flights(self, origin: str, destinations: List[str], date: datetime, adults: int = 1, children: int = 0) -> List[Flight]:
         pass
 
     @abstractmethod
@@ -33,7 +34,7 @@ class BaseCrawler(ABC):
         pass
 
 class MockCrawler(BaseCrawler):
-    def fetch_flights(self, origin: str, destinations: List[str], date: datetime, adults: int = 1) -> List[Flight]:
+    def fetch_flights(self, origin: str, destinations: List[str], date: datetime, adults: int = 1, children: int = 0) -> List[Flight]:
         flights = []
         for dest in destinations:
             if origin == dest:
@@ -102,7 +103,7 @@ class GoogleFlightsCrawler(BaseCrawler):
     def _get_driver(self):
         return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=self.options)
 
-    def fetch_flights(self, origin: str, destinations: List[str], date: datetime, adults: int = 1) -> List[Flight]:
+    def fetch_flights(self, origin: str, destinations: List[str], date: datetime, adults: int = 1, children: int = 0) -> List[Flight]:
         flights = []
         driver = None
         try:
@@ -285,7 +286,7 @@ class AmadeusCrawler(BaseCrawler):
             print(f"❌ TEST AUTH ERROR: {e}")
         print(f"--- END MANUAL CHECK ---\n")
 
-    def fetch_flights(self, origin: str, destinations: List[str], date: datetime, adults: int = 1) -> List[Flight]:
+    def fetch_flights(self, origin: str, destinations: List[str], date: datetime, adults: int = 1, children: int = 0) -> List[Flight]:
         if not self.client_ready:
             print("Amadeus client not ready.")
             return []
@@ -296,7 +297,7 @@ class AmadeusCrawler(BaseCrawler):
             
             try:
                 date_str = date.strftime("%Y-%m-%d")
-                cache_date_key = f"{date_str}_A{adults}"
+                cache_date_key = f"{date_str}_A{adults}_C{children}" # Update cache key
                 
                 # Check Cache First
                 from data.database import FlightCache
@@ -310,14 +311,23 @@ class AmadeusCrawler(BaseCrawler):
                     response_data = cached_data
                 else:
                     # API Call
-                    response = self.amadeus.shopping.flight_offers_search.get(
-                        originLocationCode=self._get_iata(origin),
-                        destinationLocationCode=self._get_iata(dest),
-                        departureDate=date_str,
-                        adults=adults,
-                        max=25,
-                        currencyCode='BRL'
-                    )
+                    # Amadeus API supports 'children' and 'infants'
+                    # We map our 'children' input to API 'children' (2-11yo)
+                    # If we wanted to support infants, we would need another param.
+                    
+                    req_params = {
+                        "originLocationCode": self._get_iata(origin),
+                        "destinationLocationCode": self._get_iata(dest),
+                        "departureDate": date_str,
+                        "adults": adults,
+                        "max": 25,
+                        "currencyCode": 'BRL'
+                    }
+                    if children > 0:
+                        req_params["children"] = children
+                        
+                    response = self.amadeus.shopping.flight_offers_search.get(**req_params)
+
                     if response.data:
                         response_data = response.data
                         # Save to Cache
@@ -396,7 +406,7 @@ class AmadeusCrawler(BaseCrawler):
                     print(f"Amadeus API Error for {origin}->{dest}: {e}")
                 
         return flights
-
+    
     def fetch_hotels(self, cities: List[str]) -> List[Hotel]:
         return []
 
