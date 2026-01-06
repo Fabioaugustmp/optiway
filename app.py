@@ -4,7 +4,7 @@ import numpy as np
 import plotly.express as px
 from datetime import datetime, timedelta
 from data.models import Flight, Hotel, CarRental, TravelRequest
-from data.crawler import MockCrawler, GoogleFlightsCrawler
+from data.crawler import MockCrawler, GoogleFlightsCrawler, AmadeusCrawler
 from optimization.solver import solve_itinerary
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
@@ -45,8 +45,23 @@ st.sidebar.subheader("Preferências de Otimização")
 peso_custo = st.sidebar.slider("Peso: Custo Financeiro", 0.0, 1.0, 0.7)
 peso_tempo = st.sidebar.slider("Peso: Tempo Total", 0.0, 1.0, 0.3)
 allow_open_jaw = st.sidebar.checkbox("Permitir Open-Jaw (Retorno diferente)", value=True)
+st.sidebar.markdown("---")
 
-use_live_data = st.sidebar.toggle("Tentar Dados Reais (Beta)", value=False)
+# Provider Selection
+st.sidebar.subheader("Provedor de Voos")
+provider = st.sidebar.selectbox("Escolha o Provedor", ["Google Flights (Scraper)", "Amadeus API", "Mock Data"])
+
+# Load env vars
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+amadeus_key = os.getenv("AMADEUS_API_KEY", "")
+amadeus_secret = os.getenv("AMADEUS_API_SECRET", "")
+
+if provider == "Amadeus API":
+    amadeus_key = st.sidebar.text_input("Amadeus API Key", value=amadeus_key)
+    amadeus_secret = st.sidebar.text_input("Amadeus API Secret", value=amadeus_secret, type="password")
 
 # Limpeza de input
 origens = [c.strip() for c in origens if c.strip()]
@@ -69,7 +84,19 @@ if st.button("🚀 Calcular Melhor Roteiro", type="primary"):
         # 1. Coleta de Dados
         status.write("🔍 Coletando dados de voos e hotéis...")
         
-        crawler = GoogleFlightsCrawler(headless=True) if use_live_data else MockCrawler()
+
+
+        # Crawler Initialization
+        if provider == "Google Flights (Scraper)":
+            crawler = GoogleFlightsCrawler(headless=True)
+        elif provider == "Amadeus API":
+            if amadeus_key and amadeus_secret:
+                crawler = AmadeusCrawler(amadeus_key, amadeus_secret)
+            else:
+                st.warning("⚠️ Credenciais Amadeus não fornecidas. Usando Mock.")
+                crawler = MockCrawler()
+        else:
+            crawler = MockCrawler()
         
         # Loop to fetch flights from EACH city to all others to ensure connectivity (Mesh)
         flights = []
@@ -85,8 +112,8 @@ if st.button("🚀 Calcular Melhor Roteiro", type="primary"):
                 print(f"Error fetching from {orig_city}: {e}")
         
         # Original fallback logic was too simplistic, assume above works for Mock
-        if not flights and use_live_data:
-             status.write("⚠️ Crawler bloqueado. Usando dados simulados.")
+        if not flights and provider != "Mock Data":
+             status.write("⚠️ Crawler bloqueado ou sem dados. Usando dados simulados.")
              crawler = MockCrawler()
              for orig_city in todas_cidades:
                 dests = [c for c in todas_cidades if c != orig_city]

@@ -217,3 +217,101 @@ class GoogleFlightsCrawler(BaseCrawler):
 
     def fetch_car_rentals(self, cities: List[str]) -> List[CarRental]:
         return []
+
+class AmadeusCrawler(BaseCrawler):
+    def __init__(self, client_id: str, client_secret: str):
+        try:
+            from amadeus import Client, ResponseError
+            self.amadeus = Client(
+                client_id=client_id,
+                client_secret=client_secret
+            )
+            self.client_ready = True
+        except Exception as e:
+            print(f"Amadeus Init Error: {e}")
+            self.client_ready = False
+
+    def fetch_flights(self, origin: str, destinations: List[str], date: datetime) -> List[Flight]:
+        if not self.client_ready:
+            print("Amadeus client not ready.")
+            return []
+            
+        flights = []
+        for dest in destinations:
+            if origin == dest: continue
+            
+            try:
+                # Flight Offers Search
+                date_str = date.strftime("%Y-%m-%d")
+                response = self.amadeus.shopping.flight_offers_search.get(
+                    originLocationCode=self._get_iata(origin),
+                    destinationLocationCode=self._get_iata(dest),
+                    departureDate=date_str,
+                    adults=1,
+                    max=5
+                )
+                
+                if response.data:
+                    for offer in response.data:
+                        # Extract first segment details
+                        itineraries = offer['itineraries'][0]
+                        segment = itineraries['segments'][0]
+                        
+                        # Price
+                        price_total = float(offer['price']['total'])
+                        currency = offer['price']['currency']
+                        # Simple currency conversion if needed (assuming BRL for context or raw)
+                        # Ignoring conversion logic for brevity, assuming raw value is what we want or USD->BRL approx
+                        
+                        # Duration (ISO 8601 PT1H30M)
+                        import isodate
+                        duration = isodate.parse_duration(itineraries['duration'])
+                        minutes = int(duration.total_seconds() / 60)
+                        
+                        # Airline
+                        carrier_code = segment['carrierCode']
+                        # We could map carrier code to name, but code is fine for now
+                        
+                        dep_time = datetime.fromisoformat(segment['departure']['at'])
+                        arr_time = datetime.fromisoformat(segment['arrival']['at'])
+                        
+                        flights.append(Flight(
+                            origin=origin,
+                            destination=dest,
+                            price=price_total,
+                            duration_minutes=minutes,
+                            airline=carrier_code,
+                            departure_time=dep_time,
+                            arrival_time=arr_time
+                        ))
+                        print(f"[AMADEUS] Found: {carrier_code} | {origin}->{dest} | {currency} {price_total}")
+                        
+            except Exception as e:
+                print(f"Amadeus API Error for {origin}->{dest}: {e}")
+                
+        return flights
+
+    def fetch_hotels(self, cities: List[str]) -> List[Hotel]:
+        return []
+
+    def fetch_car_rentals(self, cities: List[str]) -> List[CarRental]:
+        return []
+
+    def _get_iata(self, city_name: str) -> str:
+        # Simple Mock IATA Mapper or use Amadeus City Search
+        # For prototype, we map common Brazilian cities
+        mapping = {
+            "São Paulo": "GRU", "Sao Paulo": "GRU",
+            "Rio de Janeiro": "GIG",
+            "Belo Horizonte": "CNF",
+            "Brasília": "BSB", "Brasilia": "BSB",
+            "Salvador": "SSA",
+            "Curitiba": "CWB",
+            "Florianópolis": "FLN", "Florianopolis": "FLN",
+            "Miami": "MIA",
+            "Orlando": "MCO",
+            "New York": "JFK",
+            "Paris": "CDG",
+            "London": "LHR"
+        }
+        return mapping.get(city_name, "GRU") # Default/Fallback
