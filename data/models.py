@@ -11,6 +11,13 @@ class Flight:
     airline: str
     departure_time: datetime
     arrival_time: datetime
+    stops: int = 0
+    baggage: str = "N/A"
+    details: str = "" # e.g. "GRU->MIA (JJ123)"
+
+    @property
+    def formatted_price(self):
+        return f"R$ {self.price:,.2f}"
 
 @dataclass
 class Hotel:

@@ -114,7 +114,7 @@ if st.button("🚀 Calcular Melhor Roteiro", type="primary"):
                 # For safety, remove self from dests
                 dests = [c for c in todas_cidades if c != orig_city]
                 if dests:
-                    new_flights = crawler.fetch_flights(orig_city, dests, datetime.combine(data_inicio, datetime.min.time()))
+                    new_flights = crawler.fetch_flights(orig_city, dests, datetime.combine(data_inicio, datetime.min.time()), adults=pax_adultos)
                     flights.extend(new_flights)
             except Exception as e:
                 print(f"Error fetching from {orig_city}: {e}")
@@ -194,29 +194,162 @@ if st.button("🚀 Calcular Melhor Roteiro", type="primary"):
                 "Destino": leg['to'],
                 "Cia Aérea": f_obj.airline if f_obj else "N/A",
                 "Preço": f"R$ {leg['price']:.2f}",
-                "Duração": f"{f_obj.duration_minutes} min" if f_obj else "-"
+                "Duração": f"{f_obj.duration_minutes} min" if f_obj else "-",
+                "Paradas": f"{f_obj.stops}" if f_obj else "-",
+                "Bagagem": f"{f_obj.baggage}" if f_obj else "-",
+                "Detalhes": f"{f_obj.details}" if f_obj else "-"
             })
             
             # Map paths
             if leg['from'] in mock_coords and leg['to'] in mock_coords:
                 path_coords.append([mock_coords[leg['from']], mock_coords[leg['to']]])
 
-        st.dataframe(pd.DataFrame(itinerary_data), width='stretch')
+        st.dataframe(pd.DataFrame(itinerary_data), use_container_width=True)
+
+        # --- OUTRAS OPÇÕES ---
+        st.subheader("🔍 Outras Opções de Voos Encontradas")
+        
+        alternatives_coords = []
+        
+        for leg in result['itinerary']:
+            orig = leg['from']
+            dest = leg['to']
+            
+            # Filter all fetched flights for this leg
+            alternatives = [f for f in flights if f.origin == orig and f.destination == dest]
+            # Exclude the one chosen (optional, or just list all sorted)
+            alternatives.sort(key=lambda x: x.price)
+            
+            with st.expander(f"Ver opções para: {orig} ➡️ {dest} ({len(alternatives)} opções)"):
+                alt_data = []
+                for alt_f in alternatives:
+                    alt_data.append({
+                        "Cia": alt_f.airline,
+                        "Preço": alt_f.formatted_price,
+                        "Duração": f"{alt_f.duration_minutes} min",
+                        "Paradas": alt_f.stops,
+                        "Bagagem": alt_f.baggage,
+                        "Detalhes": alt_f.details
+                    })
+                    
+                    # Collect coords for map (Alternatives)
+                    if orig in mock_coords and dest in mock_coords:
+                         alternatives_coords.append({
+                            "source": mock_coords[orig],
+                            "target": mock_coords[dest],
+                            "tooltip": f"Alternative: {orig}->{dest} ({alt_f.airline})"
+                        })
+
+                st.table(pd.DataFrame(alt_data))
 
         # Map Visualization
-        if path_coords:
-            st.subheader("🗺️ Visualização no Mapa")
+        st.subheader("🗺️ Visualização das Rotas")
+        
+        # Expanded Coords for Asia/Oceania context
+        mock_coords.update({
+            "SYD": [-33.86, 151.20], "SGN": [10.82, 106.62],
+            "BKK": [13.75, 100.50], "MNL": [14.59, 120.98],
+            "XMN": [24.47, 118.08], "DPS": [-8.74, 115.16],
+            "CAN": [23.39, 113.29], "SIN": [1.35, 103.98],
+            "KUL": [2.74, 101.69], "HKG": [22.31, 113.91]
+        })
+
+        if path_coords or alternatives_coords:
+            import pydeck as pdk
             
-            # Create simple map df
-            map_points = []
+            # 1. Optimal Route (Red)
+            optimal_layer_data = []
             for leg in result['itinerary']:
-                orig = leg['from']
-                dest = leg['to']
-                if orig in mock_coords: map_points.append({"city": orig, "lat": mock_coords[orig][0], "lon": mock_coords[orig][1], "type": "Origem"})
-                if dest in mock_coords: map_points.append({"city": dest, "lat": mock_coords[dest][0], "lon": mock_coords[dest][1], "type": "Destino"})
+                if leg['from'] in mock_coords and leg['to'] in mock_coords:
+                    optimal_layer_data.append({
+                        "source": [mock_coords[leg['from']][1], mock_coords[leg['from']][0]], # [Lon, Lat]
+                        "target": [mock_coords[leg['to']][1], mock_coords[leg['to']][0]],
+                        "tooltip": f"Optimal: {leg['from']}->{leg['to']}"
+                    })
+
+            # 2. Alternatives Data (Yellow)
+            alt_layer_data = []
+            for item in alternatives_coords:
+                 # item['source'] is [Lat, Lon] from mock_coords
+                 alt_layer_data.append({
+                    "source": [item['source'][1], item['source'][0]],
+                    "target": [item['target'][1], item['target'][0]],
+                    "tooltip": item['tooltip']
+                 })
+
+            # Determine View State Center
+            mid_lat, mid_lon = 0, 0
+            count = 0
             
-            df_map = pd.DataFrame(map_points).drop_duplicates(subset=['city'])
-            st.map(df_map)
+            # Collect all points to find center
+            all_lats = []
+            all_lons = []
+            
+            for d in optimal_layer_data:
+                all_lons.append(d["source"][0])
+                all_lats.append(d["source"][1])
+            
+            for d in alt_layer_data:
+                all_lons.append(d["source"][0])
+                all_lats.append(d["source"][1])
+                
+            if all_lats and all_lons:
+                mid_lat = sum(all_lats) / len(all_lats)
+                mid_lon = sum(all_lons) / len(all_lons)
+            elif mock_coords and "GRU" in mock_coords:
+                 mid_lat, mid_lon = mock_coords["GRU"][0], mock_coords["GRU"][1]
+
+            view_state = pdk.ViewState(
+                latitude=mid_lat,
+                longitude=mid_lon,
+                zoom=3,
+                pitch=40,
+            )
+
+            # Layers
+            layers = []
+            
+            if alt_layer_data:
+                layers.append(pdk.Layer(
+                    "ArcLayer",
+                    data=alt_layer_data,
+                    get_source_position="source",
+                    get_target_position="target",
+                    get_source_color=[255, 215, 0, 150], # Gold, semi-transparent
+                    get_target_color=[255, 215, 0, 150],
+                    get_width=2,
+                    pickable=True,
+                ))
+            
+            if optimal_layer_data:
+                layers.append(pdk.Layer(
+                    "ArcLayer",
+                    data=optimal_layer_data,
+                    get_source_position="source",
+                    get_target_position="target",
+                    get_source_color=[255, 0, 0, 255], # Red, Solid
+                    get_target_color=[255, 0, 0, 255],
+                    get_width=5,
+                    pickable=True,
+                ))
+
+            r = pdk.Deck(
+                layers=layers,
+                initial_view_state=view_state,
+                tooltip={"text": "{tooltip}"},
+                # Using a default safe style or None
+                map_style=None
+            )
+            
+            st.pydeck_chart(r, use_container_width=True)
+
+            # Legend
+            st.markdown("""
+            <div style='display: flex; gap: 20px;'>
+                <div><span style='color:red; font-weight:bold;'>—</span> Rota Principal (Otimizada)</div>
+                <div><span style='color:#FFD700; font-weight:bold;'>—</span> Rotas Alternativas</div>
+            </div>
+            """, unsafe_allow_html=True)
 
     else:
         st.error("Não foi possível encontrar um roteiro válido com as restrições informadas.")

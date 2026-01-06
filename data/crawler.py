@@ -21,7 +21,7 @@ except ImportError:
 
 class BaseCrawler(ABC):
     @abstractmethod
-    def fetch_flights(self, origin: str, destinations: List[str], date: datetime) -> List[Flight]:
+    def fetch_flights(self, origin: str, destinations: List[str], date: datetime, adults: int = 1) -> List[Flight]:
         pass
 
     @abstractmethod
@@ -33,7 +33,7 @@ class BaseCrawler(ABC):
         pass
 
 class MockCrawler(BaseCrawler):
-    def fetch_flights(self, origin: str, destinations: List[str], date: datetime) -> List[Flight]:
+    def fetch_flights(self, origin: str, destinations: List[str], date: datetime, adults: int = 1) -> List[Flight]:
         flights = []
         for dest in destinations:
             if origin == dest:
@@ -102,7 +102,7 @@ class GoogleFlightsCrawler(BaseCrawler):
     def _get_driver(self):
         return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=self.options)
 
-    def fetch_flights(self, origin: str, destinations: List[str], date: datetime) -> List[Flight]:
+    def fetch_flights(self, origin: str, destinations: List[str], date: datetime, adults: int = 1) -> List[Flight]:
         flights = []
         driver = None
         try:
@@ -285,7 +285,7 @@ class AmadeusCrawler(BaseCrawler):
             print(f"❌ TEST AUTH ERROR: {e}")
         print(f"--- END MANUAL CHECK ---\n")
 
-    def fetch_flights(self, origin: str, destinations: List[str], date: datetime) -> List[Flight]:
+    def fetch_flights(self, origin: str, destinations: List[str], date: datetime, adults: int = 1) -> List[Flight]:
         if not self.client_ready:
             print("Amadeus client not ready.")
             return []
@@ -296,11 +296,12 @@ class AmadeusCrawler(BaseCrawler):
             
             try:
                 date_str = date.strftime("%Y-%m-%d")
+                cache_date_key = f"{date_str}_A{adults}"
                 
                 # Check Cache First
                 from data.database import FlightCache
                 cache = FlightCache()
-                cached_data = cache.get_cached_response(origin, dest, date_str, "AMADEUS")
+                cached_data = cache.get_cached_response(origin, dest, cache_date_key, "AMADEUS")
                 
                 response_data = None
                 
@@ -313,14 +314,14 @@ class AmadeusCrawler(BaseCrawler):
                         originLocationCode=self._get_iata(origin),
                         destinationLocationCode=self._get_iata(dest),
                         departureDate=date_str,
-                        adults=1,
-                        max=5,
+                        adults=adults,
+                        max=25,
                         currencyCode='BRL'
                     )
                     if response.data:
                         response_data = response.data
                         # Save to Cache
-                        cache.save_response(origin, dest, date_str, response_data, "AMADEUS")
+                        cache.save_response(origin, dest, cache_date_key, response_data, "AMADEUS")
                 
                 if response_data:
                     for offer in response_data:
@@ -331,8 +332,6 @@ class AmadeusCrawler(BaseCrawler):
                         # Price
                         price_total = float(offer['price']['total'])
                         currency = offer['price']['currency']
-                        # Simple currency conversion if needed (assuming BRL for context or raw)
-                        # Ignoring conversion logic for brevity, assuming raw value is what we want or USD->BRL approx
                         
                         # Duration (ISO 8601 PT1H30M)
                         import isodate
@@ -341,10 +340,39 @@ class AmadeusCrawler(BaseCrawler):
                         
                         # Airline
                         carrier_code = segment['carrierCode']
-                        # We could map carrier code to name, but code is fine for now
                         
                         dep_time = datetime.fromisoformat(segment['departure']['at'])
                         arr_time = datetime.fromisoformat(segment['arrival']['at'])
+                        
+                        # --- Enhanced Data Parsing ---
+                        # Stops
+                        segments = itineraries['segments']
+                        stops = len(segments) - 1
+                        
+                        # Details string
+                        seg_details = []
+                        for s in segments:
+                            flight_no = f"{s['carrierCode']}{s['number']}"
+                            seg_str = f"{s['departure']['iataCode']}->{s['arrival']['iataCode']} ({flight_no})"
+                            seg_details.append(seg_str)
+                        details_str = ", ".join(seg_details)
+                        
+                        # Baggage
+                        baggage_info = "N/A"
+                        try:
+                            first_traveler = offer['travelerPricings'][0]
+                            first_seg_fare = first_traveler['fareDetailsBySegment'][0]
+                            
+                            if 'includedCheckedBags' in first_seg_fare:
+                                bags = first_seg_fare['includedCheckedBags']
+                                if 'quantity' in bags:
+                                    baggage_info = f"{bags['quantity']} PC"
+                                elif 'weight' in bags:
+                                    baggage_info = f"{bags['weight']} {bags.get('weightUnit', 'KG')}"
+                            else:
+                                baggage_info = "0 PC" 
+                        except Exception:
+                            baggage_info = "?"
                         
                         flights.append(Flight(
                             origin=origin,
@@ -353,20 +381,19 @@ class AmadeusCrawler(BaseCrawler):
                             duration_minutes=minutes,
                             airline=carrier_code,
                             departure_time=dep_time,
-                            arrival_time=arr_time
+                            arrival_time=arr_time,
+                            stops=stops,
+                            baggage=baggage_info,
+                            details=details_str
                         ))
-                        print(f"[AMADEUS] Found: {carrier_code} | {origin}->{dest} | {currency} {price_total}")
+                        print(f"[AMADEUS] Found: {carrier_code} ({stops} stops) | {origin}->{dest} | {currency} {price_total}")
                         
             except Exception as e:
-                # Better error logging for Amadeus
+                # Catch specific connection errors
                 if hasattr(e, 'response') and e.response:
                     print(f"Amadeus API Error for {origin}->{dest}: [{e.response.status_code}] {e.response.body}")
                 else:
                     print(f"Amadeus API Error for {origin}->{dest}: {e}")
-                
-                # Check for common auth errors
-                if "invalid_client" in str(e) or (hasattr(e, 'response') and e.response.status_code == 401):
-                    print("HINT: Check if your credentials are for the TEST environment. This app defaults to Amadeus TEST environment.")
                 
         return flights
 
