@@ -51,6 +51,7 @@ class FlightOption(Base):
     price = Column(Float)
     duration = Column(Integer)
     stops = Column(Integer)
+    flight_number = Column(String, default="N/A")
     departure_time = Column(DateTime)
     arrival_time = Column(DateTime)
     

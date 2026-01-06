@@ -38,6 +38,13 @@
                     </div>
 
                     <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="useMockData" name="use_mock_data">
+                            <label class="form-check-label" for="useMockData">Usar Dados Mock (Teste)</label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label">Origens (sep. vírgula)</label>
                         <input type="text" class="form-control" name="origin_cities" value="São Paulo" required>
                     </div>
@@ -99,6 +106,12 @@
 
 {% block scripts %}
 <script>
+    function getCookie(name) {
+        let value = "; " + document.cookie;
+        let parts = value.split("; " + name + "=");
+        if (parts.length == 2) return parts.pop().split(";").shift();
+    }
+
     // Set default date
     const today = new Date();
     today.setDate(today.getDate() + 30);
@@ -176,7 +189,10 @@
             start_date: formData.get('start_date') + "T00:00:00",
             weight_cost: weightCost,
             weight_time: 1 - weightCost,
-            is_round_trip: chkRound.checked
+            weight_cost: weightCost,
+            weight_time: 1 - weightCost,
+            is_round_trip: chkRound.checked,
+            use_mock_data: document.getElementById('useMockData').checked
         };
 
         if (chkRound.checked && formData.get('return_date')) {
@@ -196,6 +212,9 @@
             if (res.ok) {
                 const result = await res.json();
                 renderResults(result);
+            } else if (res.status === 401) {
+                alert("Sessão expirada. Por favor, faça login novamente.");
+                window.location.href = "/login";
             } else {
                 alert("Erro ao processar: " + res.statusText);
             }
@@ -214,7 +233,13 @@
         container.classList.remove('d-none');
 
         if (data.status !== 'Optimal') {
-            let msg = `<div class="alert alert-warning">Não foi possível encontrar um roteiro perfeito. Tente flexibilizar as datas ou cidades.</div>`;
+            let msg = '';
+            if (data.status === 'Infeasible') {
+                msg = `<div class="alert alert-warning">⚠️ <strong>Aviso:</strong> Não foi possível identificar uma rota válida com as restrições informadas. Tente flexibilizar as datas ou cidades.</div>`;
+            } else {
+                msg = `<div class="alert alert-warning">⚠️ <strong>Aviso:</strong> Otimização incompleta (Status: ${data.status}). Verifique os dados.</div>`;
+            }
+
             if (data.warning_message) {
                 msg += `<div class="alert alert-info">💡 <strong>Sugestão:</strong> ${data.warning_message}</div>`;
             }
@@ -222,25 +247,42 @@
             return;
         }
 
-        // Cost Breakdown Logic
-        let flightCost = 0;
-        let carCost = 0;
-        if (data.cost_breakdown) {
-            flightCost = data.cost_breakdown.flight || 0;
-            carCost = data.cost_breakdown.car || 0;
-        } else {
-            // Fallback estimation if not provided
-            flightCost = data.total_cost;
+        // Check for Hybrid Route (Car segments)
+        let hasCar = false;
+        data.itinerary.forEach(leg => {
+            const flight = leg.flight || {};
+            if (flight.airline && (flight.airline.includes('Carro') || flight.airline.includes('Aluguel'))) {
+                hasCar = true;
+            }
+        });
+
+        // Hybrid Alert
+        let hybridAlert = '';
+        if (hasCar) {
+            hybridAlert = `<div class="alert alert-success mb-3">
+                <div class="d-flex align-items-center">
+                    <span class="fs-4 me-2">🚗</span>
+                    <div>
+                        <strong>Roteiro Híbrido Detectado!</strong><br>
+                        Como o destino não possui aeroporto próximo, incluímos um trecho terrestre recomendado.
+                    </div>
+                </div>
+            </div>`;
         }
 
         // Summary Card
+        const flightCost = (data.cost_breakdown && data.cost_breakdown.flight) || 0;
+        const carCost = (data.cost_breakdown && data.cost_breakdown.car) || 0;
+
         const summary = `
+            ${hybridAlert}
             <div class="card mb-4 border-success">
                 <div class="card-body">
                     <div class="row text-center align-items-center">
                         <div class="col">
                             <h3 class="text-success">R$ ${data.total_cost.toFixed(2)}</h3>
                             <small class="text-muted">Custo Total Estimado</small>
+                            ${hasCar ? '<div class="mt-2"><span class="badge bg-success">🚗 Rota Híbrida</span></div>' : ''}
                         </div>
                         <div class="col border-start border-end">
                             <ul class="list-unstyled text-start d-inline-block small mb-0">
@@ -259,14 +301,38 @@
 
         // Itinerary Table
         let rows = '';
+
+        // Format Helper
+        const fmtTime = (isoStr) => {
+            if (!isoStr) return 'N/A';
+            const d = new Date(isoStr);
+            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) +
+                ` <small class="text-muted">${d.getDate()}/${d.getMonth() + 1}</small>`;
+        };
         const mapSegments = [];
 
         data.itinerary.forEach(leg => {
             const flight = leg.flight || {};
+            const isCar = flight.airline && (flight.airline.includes('Carro') || flight.airline.includes('Aluguel'));
+
+            const rowClass = isCar ? 'table-success' : '';
+            const icon = isCar ? '🚗' : '✈️';
+            // Show Flight Number if valid
+            let flightNumDisplay = '';
+            if (flight.flight_number && flight.flight_number !== 'N/A') {
+                flightNumDisplay = `<br><small class="text-muted">${flight.flight_number}</small>`;
+            }
+            const airlineDisplay = isCar ? `<strong>${flight.airline}</strong>` : (flight.airline || 'N/A') + flightNumDisplay;
+
+            const depTime = fmtTime(flight.departure_time);
+            const arrTime = fmtTime(flight.arrival_time);
+
             rows += `
-                <tr>
+                <tr class="${rowClass}" style="cursor: pointer;" onclick="showAlternatives('${leg.origin}-${leg.destination}')" title="Clique para ver alternativas">
                     <td><strong>${leg.origin}</strong> <br> <small class="text-muted">➝ ${leg.destination}</small></td>
-                    <td>${flight.airline || 'N/A'}</td>
+                    <td>${icon} ${airlineDisplay}</td>
+                    <td>${depTime}</td>
+                    <td>${arrTime}</td>
                     <td>${leg.duration} min</td>
                     <td>R$ ${leg.price.toFixed(2)}</td>
                     <td><span class="badge bg-secondary">${flight.stops || 0} paradas</span></td>
@@ -280,9 +346,13 @@
                     to_name: leg.destination,
                     from: leg.origin_coords,
                     to: leg.dest_coords,
-                    airline: flight.airline || 'N/A'
+                    airline: flight.airline || 'N/A',
+                    dep: depTime,
+                    arr: arrTime
                 });
             }
+
+            // Collect backend coords (Duplicate removed)
         });
 
         const table = `
@@ -306,6 +376,8 @@
                                     <tr>
                                         <th>Rota</th>
                                         <th>Cia Aérea</th>
+                                        <th>Partida</th>
+                                        <th>Chegada</th>
                                         <th>Duração</th>
                                         <th>Preço</th>
                                         <th>Detalhes</th>
@@ -345,64 +417,20 @@
         initMap(mapSegments);
     }
 
-    function renderAlternatives(alternatives) {
-        if (!alternatives) return;
-
-        const container = document.getElementById('alternativesContainer');
-        let html = '';
-
-        // Loop through each route leg (Key: Origin-Destination)
-        for (const [route, flights] of Object.entries(alternatives)) {
-            // Sort by price cheaper first
-            flights.sort((a, b) => a.price - b.price);
-
-            html += `
-                <div class="mb-4">
-                    <h6 class="border-bottom pb-2 text-primary">Rota: ${route} (${flights.length} opções)</h6>
-                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
-                        <table class="table table-sm table-striped">
-                            <thead>
-                                <tr>
-                                    <th>Cia</th>
-                                    <th>Preço</th>
-                                    <th>Duração</th>
-                                    <th>Paradas</th>
-                                    <th>Horário</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-            `;
-
-            flights.forEach(f => {
-                html += `
-                    <tr>
-                        <td>${f.airline}</td>
-                        <td class="fw-bold">R$ ${f.price.toFixed(2)}</td>
-                        <td>${f.duration_minutes}m</td>
-                        <td>${f.stops}</td>
-                        <td>${new Date(f.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                    </tr>
-                `;
-            });
-
-            html += `</tbody></table></div></div>`;
-        }
-
-        container.innerHTML = html;
-    }
-
-    // Helper: Cookie
-    function getCookie(name) {
-        const value = `; ${document.cookie}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop().split(';').shift();
-    }
-
     // Map Logic (Leaflet)
     function initMap(segments) {
         if (typeof L === 'undefined') return;
+        if (!segments || segments.length === 0) return;
 
-        const map = L.map('map').setView([0, 0], 2);
+        // Reset Map if exists
+        if (window.currentMap) {
+            window.currentMap.remove();
+            window.currentMap = null;
+        }
+
+        const map = L.map('map');
+        window.currentMap = map;
+
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap'
         }).addTo(map);
@@ -421,22 +449,74 @@
             const isCar = seg.airline && (seg.airline.includes("Carro") || seg.airline.includes("Aluguel"));
 
             const polyOptions = {
-                color: isCar ? '#28a745' : '#dc3545', // Green for car, Red for flight
-                weight: 3,
+                color: isCar ? '#28a745' : '#dc3545',
+                weight: 4,
                 opacity: 0.7,
                 dashArray: isCar ? '10, 10' : null
             };
 
-            L.polyline(latlngs, polyOptions).addTo(map);
+            const poly = L.polyline(latlngs, polyOptions).addTo(map);
+
+            // Detailed Popup
+            let content = `<b>${seg.from_name} ➝ ${seg.to_name}</b><br>${seg.airline}`;
+            if (seg.dep && seg.arr) {
+                content += `<hr class="my-1">🛫 Partida: ${seg.dep}<br>🛬 Chegada: ${seg.arr}`;
+            }
+            poly.bindPopup(content);
 
             allPoints.push(seg.from);
             allPoints.push(seg.to);
         });
 
         if (allPoints.length > 0) {
-            map.fitBounds(allPoints);
+            map.fitBounds(allPoints, { padding: [50, 50] });
         }
     }
+
+    // Capture Alternatives Data
+    let globalAlternatives = {};
+
+    function renderAlternatives(alternatives) {
+        globalAlternatives = alternatives || {};
+        const container = document.getElementById('alternativesContainer');
+        if (Object.keys(globalAlternatives).length === 0) {
+            container.innerHTML = '<p class="text-muted text-center p-3">Nenhuma alternativa encontrada.</p>';
+        } else {
+            container.innerHTML = '<p class="text-muted text-center p-3">Clique em um voo na tabela acima para ver as opções.</p>';
+        }
+    }
+
+    window.showAlternatives = function (key) {
+        // Switch tab
+        const tabTrigger = new bootstrap.Tab(document.querySelector('#alternatives-tab'));
+        tabTrigger.show();
+
+        const container = document.getElementById('alternativesContainer');
+        const flights = globalAlternatives[key];
+
+        if (!flights || flights.length === 0) {
+            container.innerHTML = `<div class="alert alert-info">Sem alternativas diretas para o trecho ${key}.</div>`;
+            return;
+        }
+
+        let html = `<h5 class="my-3">Alternativas para ${key}</h5>
+                    <div class="table-responsive"><table class="table table-sm table-bordered">
+                    <thead><tr><th>Cia</th><th>Voo</th><th>Partida</th><th>Chegada</th><th>Preço</th></tr></thead><tbody>`;
+
+        flights.forEach(f => {
+            const dep = new Date(f.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const arr = new Date(f.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            html += `<tr>
+                        <td>${f.airline}</td>
+                        <td>${f.flight_number || '-'}</td>
+                        <td>${dep}</td>
+                        <td>${arr}</td>
+                        <td>R$ ${f.price.toFixed(2)}</td>
+                      </tr>`;
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    };
 </script>
 <!-- Load Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

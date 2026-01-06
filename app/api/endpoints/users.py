@@ -17,7 +17,7 @@ class SearchHistoryResponse(BaseModel):
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 @router.get("/history", response_model=List[SearchHistoryResponse])
 def get_user_history(

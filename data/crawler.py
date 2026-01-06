@@ -52,6 +52,8 @@ class MockCrawler(BaseCrawler):
                 dep_time = date.replace(hour=hour, minute=minute)
                 arr_time = dep_time + timedelta(minutes=duration)
 
+                flight_no = f"{random.choice(['G3', 'LA', 'AD', '2Z'])}{random.randint(1000, 9999)}"
+
                 flights.append(Flight(
                     origin=origin,
                     destination=dest,
@@ -59,7 +61,8 @@ class MockCrawler(BaseCrawler):
                     duration_minutes=duration,
                     airline=airline,
                     departure_time=dep_time,
-                    arrival_time=arr_time
+                    arrival_time=arr_time,
+                    flight_number=flight_no
                 ))
         return flights
 
@@ -394,7 +397,8 @@ class AmadeusCrawler(BaseCrawler):
                             arrival_time=arr_time,
                             stops=stops,
                             baggage=baggage_info,
-                            details=details_str
+                            details=details_str,
+                            flight_number=f"{carrier_code}{segment['number']}"
                         ))
                         print(f"[AMADEUS] Found: {carrier_code} ({stops} stops) | {origin}->{dest} | {currency} {price_total}")
                         
@@ -435,21 +439,33 @@ class AmadeusCrawler(BaseCrawler):
                 # Let's try flight_offers style but for cars.
                 # Standard endpoint: shopping.availability.car_rentals
                 
-                print(f"[AMADEUS] Fetching cars for {city} ({iata})...")
-                # Limited params to maximize chance of success
-                # provider='AVIS,HERTZ' ... optional.
+                # Check Cache for Cars
+                from data.database import FlightCache
+                cache = FlightCache()
+                # Use a specific provider key for cars
+                cache_key = f"{start_date}_{end_date}"
+                cached_cars_json = cache.get_cached_response(city, "RENTAL_SEARCH", cache_key, "AMADEUS_CAR")
                 
-                # Using a broad search
-                response = self.amadeus.shopping.availability.city_search.get(
-                    cityCode=iata,
-                    start=f"{start_date}T10:00:00",
-                    end=f"{end_date}T10:00:00"
-                )
+                response_data = None
+                if cached_cars_json:
+                     print(f"[CACHE HIT] Using cached CAR data for {city}")
+                     response_data = cached_cars_json
+                else:
+                    print(f"[AMADEUS] Fetching cars for {city} ({iata})...")
+                    # Using a broad search
+                    response = self.amadeus.shopping.availability.city_search.get(
+                        cityCode=iata,
+                        start=f"{start_date}T10:00:00",
+                        end=f"{end_date}T10:00:00"
+                    )
+                    if response.data:
+                        response_data = response.data
+                        cache.save_response(city, "RENTAL_SEARCH", cache_key, response_data, "AMADEUS_CAR")
                 
-                if response.data:
+                if response_data:
                     # Parse first few results
                     count = 0
-                    for offer in response.data:
+                    for offer in response_data:
                         if count > 2: break
                         
                         provider = offer.get('provider', {}).get('companyName', 'Unknown')

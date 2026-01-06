@@ -164,7 +164,10 @@ if st.button("🚀 Calcular Melhor Roteiro", type="primary"):
             start_date=datetime.combine(data_inicio, datetime.min.time()),
             weight_cost=peso_custo,
             weight_time=peso_tempo,
-            allow_open_jaw=allow_open_jaw
+            allow_open_jaw=allow_open_jaw,
+            is_round_trip=not allow_open_jaw,
+            stay_days_per_city=dias_por_cidade,
+            daily_cost_per_person=custo_diario
         )
         
         result = solve_itinerary(req, flights, hotels, cars)

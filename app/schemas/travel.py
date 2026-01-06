@@ -14,6 +14,7 @@ class FlightBase(BaseModel):
     arrival_time: datetime
     stops: int = 0
     baggage: str = "N/A"
+    flight_number: str = "N/A"
     details: str = ""
 
 class FlightCreate(FlightBase):
@@ -49,9 +50,12 @@ class TravelRequest(BaseModel):
     start_date: datetime
     return_date: Optional[datetime] = None
     is_round_trip: bool = False
+    use_mock_data: bool = False
     weight_cost: float
     weight_time: float
     allow_open_jaw: bool = True
+    stay_days_per_city: int = 1
+    daily_cost_per_person: float = 0.0
 
 class ItineraryLeg(BaseModel):
     origin: str

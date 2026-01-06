@@ -20,8 +20,12 @@ def solve_trip(
     db: Session = Depends(get_db)
 ):
     # 1. Init Crawler
+    provider = "Amadeus API"
+    if request.use_mock_data or not settings.AMADEUS_API_KEY:
+        provider = "Mock Data"
+
     crawler = get_crawler(
-        provider="Amadeus API" if settings.AMADEUS_API_KEY else "Mock Data",
+        provider=provider,
         key=settings.AMADEUS_API_KEY,
         secret=settings.AMADEUS_API_SECRET
     )
@@ -79,60 +83,65 @@ def solve_trip(
             result.warning_message = suggestion_msg
 
     # 8. Save History
-    search_rec = SearchHistory(
-        user_id=current_user.id,
-        origin=",".join(request.origin_cities),
-        destinations=",".join(request.destination_cities),
-        start_date=request.start_date
-    )
-    db.add(search_rec)
-    db.commit()
-    db.refresh(search_rec)
-
-    # Save All Fetched Flights (Cache)
-    saved_flight_keys = set()
-    for f in flights:
-        if isinstance(f, str): continue
-        if hasattr(f, 'origin'):
-            f_key = f"{f.origin}-{f.destination}-{f.airline}-{f.price}"
-            if f_key in saved_flight_keys:
-                continue
-            saved_flight_keys.add(f_key)
-
-            fo = FlightOption(
-                search_id=search_rec.id,
-                origin=f.origin,
-                destination=f.destination,
-                airline=f.airline,
-                price=f.price,
-                duration=f.duration_minutes,
-                stops=f.stops,
-                departure_time=f.departure_time,
-                arrival_time=f.arrival_time
-            )
-            db.add(fo)
-    db.commit()
-
-    # Save Itinerary
-    if result.status == "Optimal":
-        itinerary_rec = Itinerary(
-            search_id=search_rec.id,
-            total_cost=result.total_cost,
-            total_duration=result.total_duration,
-            details_json=json.dumps([leg.dict() for leg in result.itinerary], default=str)
+    try:
+        search_rec = SearchHistory(
+            user_id=current_user.id,
+            origin=",".join(request.origin_cities),
+            destinations=",".join(request.destination_cities),
+            start_date=request.start_date
         )
-        db.add(itinerary_rec)
+        db.add(search_rec)
+        db.commit()
+        db.refresh(search_rec)
+
+        # Save All Fetched Flights (Cache)
+        saved_flight_keys = set()
+        for f in flights:
+            if isinstance(f, str): continue
+            if hasattr(f, 'origin'):
+                f_key = f"{f.origin}-{f.destination}-{f.airline}-{f.price}"
+                if f_key in saved_flight_keys:
+                    continue
+                saved_flight_keys.add(f_key)
+
+                fo = FlightOption(
+                    search_id=search_rec.id,
+                    origin=f.origin,
+                    destination=f.destination,
+                    airline=f.airline,
+                    price=f.price,
+                    duration=f.duration_minutes,
+                    stops=f.stops,
+                    flight_number=f.flight_number,
+                    departure_time=f.departure_time,
+                    arrival_time=f.arrival_time
+                )
+                db.add(fo)
         db.commit()
 
-        # Prepare Alternatives Grouped by Leg
-        alternatives_map = {}
-        for f in flights:
-            if hasattr(f, 'origin'):
-                key = f"{f.origin}-{f.destination}"
-                if key not in alternatives_map:
-                    alternatives_map[key] = []
-                alternatives_map[key].append(f)
-        
-        result.alternatives = alternatives_map
+        # Save Itinerary
+        if result.status == "Optimal":
+            itinerary_rec = Itinerary(
+                search_id=search_rec.id,
+                total_cost=result.total_cost,
+                total_duration=result.total_duration,
+                details_json=json.dumps([leg.dict() for leg in result.itinerary], default=str)
+            )
+            db.add(itinerary_rec)
+            db.commit()
+    except Exception as e:
+        print(f"DB Save Error: {e}")
+        # Continue execution to return result
+
+    # Prepare Alternatives Grouped by Leg
+    alternatives_map = {}
+    for f in flights:
+        if hasattr(f, 'origin'):
+            key = f"{f.origin}-{f.destination}"
+            if key not in alternatives_map:
+                alternatives_map[key] = []
+            alternatives_map[key].append(f)
+    
+    result.alternatives = alternatives_map
 
     return result
