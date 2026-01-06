@@ -176,9 +176,82 @@ class AmadeusCrawler(BaseCrawler):
         return flights
 
     def fetch_hotels(self, cities: List[str]) -> List[Hotel]:
-        return []
+        if not self.client_ready:
+            return []
+
+        all_hotels = []
+        
+        for city in cities:
+            try:
+                iata = self._get_iata(city)
+                
+                # Step 1: Get list of hotels in city
+                # Using reference-data/locations/hotels/by-city
+                hotels_response = self.amadeus.reference_data.locations.hotels.by_city.get(
+                    cityCode=iata,
+                    radius=5,
+                    radiusUnit='KM'
+                )
+                
+                if not hotels_response.data:
+                    continue
+
+                # Take top 10 hotels to check offers (API limits usually exist)
+                top_hotels = hotels_response.data[:10]
+                hotel_ids = [h['hotelId'] for h in top_hotels]
+                
+                if not hotel_ids:
+                    continue
+
+                # Step 2: Get Offers for these hotels
+                # Fetch individually to avoid batch failure if one ID is invalid (common Amadeus issue)
+                for h_id in hotel_ids:
+                    try:
+                        offers_response = self.amadeus.shopping.hotel_offers_search.get(
+                            hotelIds=h_id,
+                            adults=1,
+                            currency='BRL'
+                        )
+                        
+                        if offers_response.data:
+                            for offer in offers_response.data:
+                                hotel_data = offer.get('hotel', {})
+                                name = hotel_data.get('name', 'Unknown Hotel')
+                                
+                                offers = offer.get('offers', [])
+                                if not offers: continue
+                                
+                                price = float(offers[0]['price']['total'])
+                                
+                                rating = hotel_data.get('rating')
+                                if not rating: rating = 3.0
+                                else:
+                                    try: rating = float(rating)
+                                    except: rating = 3.0
+
+                                all_hotels.append(Hotel(
+                                    city=city,
+                                    name=name,
+                                    price_per_night=price,
+                                    rating=rating
+                                ))
+                    except Exception as loop_e:
+                        # Log specific hotel failure but continue
+                        # print(f"Failed for hotel {h_id}: {loop_e}")
+                        pass
+
+            except Exception as e:
+                print(f"Amadeus Hotel Error for {city}: {e}")
+                if hasattr(e, 'response'):
+                    try:
+                        print(f"Amadeus Response: {e.response.body}")
+                    except: pass
+                pass
+        
+        return all_hotels
 
     def fetch_car_rentals(self, cities: List[str]) -> List[CarRental]:
+        # TODO: Implement Amadeus Car Search
         return []
 
     def _get_iata(self, city_name: str) -> str:

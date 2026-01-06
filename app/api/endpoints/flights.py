@@ -59,7 +59,9 @@ def solve_trip(
     flights.extend(ground_legs)
 
     # 5. Fetch Hotels
-    hotels = crawler.fetch_hotels(all_cities)
+    hotels = []
+    if request.search_hotels:
+        hotels = crawler.fetch_hotels(all_cities)
 
     # 6. Solve
     result = solve_itinerary(request, flights, hotels, cars)

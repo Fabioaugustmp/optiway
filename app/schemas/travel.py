@@ -56,6 +56,7 @@ class TravelRequest(BaseModel):
     allow_open_jaw: bool = True
     stay_days_per_city: int = 1
     daily_cost_per_person: float = 0.0
+    search_hotels: bool = False
 
 class ItineraryLeg(BaseModel):
     origin: str
@@ -75,3 +76,4 @@ class SolverResult(BaseModel):
     warning_message: Optional[str] = None
     alternatives: Optional[dict] = None # Key: "Origin-Destination", Value: List[Flight]
     cost_breakdown: Optional[dict] = None
+    hotels_found: Optional[List[Hotel]] = []

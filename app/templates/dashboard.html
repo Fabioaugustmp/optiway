@@ -42,6 +42,10 @@
                             <input class="form-check-input" type="checkbox" id="useMockData" name="use_mock_data">
                             <label class="form-check-label" for="useMockData">Usar Dados Mock (Teste)</label>
                         </div>
+                        <div class="form-check form-switch mt-2">
+                            <input class="form-check-input" type="checkbox" id="searchHotels" name="search_hotels">
+                            <label class="form-check-label" for="searchHotels">🏨 Buscar Hotéis (Beta)</label>
+                        </div>
                     </div>
 
                     <div class="mb-3">
@@ -192,7 +196,8 @@
             weight_cost: weightCost,
             weight_time: 1 - weightCost,
             is_round_trip: chkRound.checked,
-            use_mock_data: document.getElementById('useMockData').checked
+            use_mock_data: document.getElementById('useMockData').checked,
+            search_hotels: document.getElementById('searchHotels').checked
         };
 
         if (chkRound.checked && formData.get('return_date')) {
@@ -364,6 +369,9 @@
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="alternatives-tab" data-bs-toggle="tab" data-bs-target="#alternatives-content" type="button" role="tab">🔍 Outras Opções Consultadas</button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="hotels-tab" data-bs-toggle="tab" data-bs-target="#hotels-content" type="button" role="tab">🏨 Hotéis Encontrados</button>
+                </li>
             </ul>
 
             <div class="tab-content" id="resultTabContent">
@@ -395,6 +403,13 @@
                         <p class="text-muted text-center p-3">Selecione uma rota para ver alternativas.</p>
                      </div>
                 </div>
+
+                <!-- Hotels Tab -->
+                <div class="tab-pane fade" id="hotels-content" role="tabpanel">
+                     <div id="hotelsContainer">
+                        <p class="text-muted text-center p-3">Nenhum hotel buscado.</p>
+                     </div>
+                </div>
             </div>
         `;
 
@@ -413,8 +428,40 @@
         // Render Alternatives
         renderAlternatives(data.alternatives);
 
+        // Render Hotels
+        renderHotels(data.hotels_found);
+
         // Init Map
         initMap(mapSegments);
+    }
+
+    function renderHotels(hotels) {
+        const container = document.getElementById('hotelsContainer');
+        if (!hotels || hotels.length === 0) {
+            container.innerHTML = '<p class="text-muted text-center p-3">Nenhum hotel encontrado.</p>';
+            return;
+        }
+
+        let html = '<div class="row row-cols-1 row-cols-md-2 g-4">';
+        hotels.forEach(h => {
+            html += `
+                <div class="col">
+                    <div class="card h-100 shadow-sm border-0">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <h5 class="card-title text-primary">${h.name}</h5>
+                                <span class="badge bg-success ms-2">⭐ ${h.rating}</span>
+                            </div>
+                            <h6 class="card-subtitle mb-2 text-muted">📍 ${h.city}</h6>
+                            <hr>
+                            <p class="card-text fs-4 fw-bold">R$ ${h.price_per_night.toFixed(2)} <span class="fs-6 text-muted fw-normal">/ noite</span></p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        container.innerHTML = html;
     }
 
     // Map Logic (Leaflet)
