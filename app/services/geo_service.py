@@ -15,6 +15,8 @@ AIRPORT_COORDS = {
     "JFK": (40.6413, -73.7781),  # New York
     "LHR": (51.4700, -0.4543),   # London
     "CDG": (49.0097, 2.5479),    # Paris
+    "UDI": (-18.8836, -48.2253), # Uberlandia
+    "ITUIUTABA_LOC": (-18.9772, -49.4622), # Ituiutaba (City)
     # Add more as needed or use an external library
 }
 
@@ -27,7 +29,9 @@ CITY_TO_IATA = {
     "Orlando": "MCO",
     "New York": "JFK",
     "London": "LHR",
-    "Paris": "CDG"
+    "Paris": "CDG",
+    "Uberlândia": "UDI",
+    "Ituiutaba": "ITUIUTABA_LOC"
 }
 
 def haversine_distance(coord1: Tuple[float, float], coord2: Tuple[float, float]) -> float:

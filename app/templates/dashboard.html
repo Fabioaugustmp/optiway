@@ -231,7 +231,8 @@
                     from_name: leg.origin,
                     to_name: leg.destination,
                     from: leg.origin_coords,
-                    to: leg.dest_coords
+                    to: leg.dest_coords,
+                    airline: flight.airline
                 });
             }
         });
@@ -367,7 +368,18 @@
 
             // Path
             const latlngs = [seg.from, seg.to];
-            L.polyline(latlngs, { color: 'red', weight: 3 }).addTo(map);
+
+            // Check if it's a car segment
+            const isCar = seg.airline && (seg.airline.includes("Carro") || seg.airline.includes("Aluguel"));
+
+            const polyOptions = {
+                color: isCar ? '#28a745' : '#dc3545', // Green for car, Red for flight
+                weight: 3,
+                opacity: 0.7,
+                dashArray: isCar ? '10, 10' : null
+            };
+
+            L.polyline(latlngs, polyOptions).addTo(map);
 
             allPoints.push(seg.from);
             allPoints.push(seg.to);

@@ -12,8 +12,16 @@ def solve_itinerary(
 ) -> Dict:
     
     # 1. Consolidate Cities
-    # All cities involved: Origins, Destinations, Mandatory
-    all_cities = list(set(request.origin_cities + request.destination_cities + request.mandatory_cities))
+    # Start with requested cities
+    req_cities = set(request.origin_cities + request.destination_cities + request.mandatory_cities)
+    
+    # Add any city appearing in the provided flights/segments
+    # This allows for intermediate hops (like expanding to nearest airport)
+    for f in flights:
+        req_cities.add(f.origin)
+        req_cities.add(f.destination)
+        
+    all_cities = list(req_cities)
     n = len(all_cities)
     city_map = {city: i for i, city in enumerate(all_cities)}
     

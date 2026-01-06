@@ -27,6 +27,18 @@ def solve_trip(
     )
 
     all_cities = list(set(request.origin_cities + request.destination_cities + request.mandatory_cities))
+    
+    # Expand graph with nearby airports for cities
+    expanded_set = set(all_cities)
+    for city in all_cities:
+        nearest = find_nearest_airport(city)
+        if nearest:
+            near_city, dist = nearest
+            # Add nearest hub if within 400km (e.g. Ituiutaba -> Uberlandia is ~130km)
+            if dist < 400 and near_city != city:
+                expanded_set.add(near_city)
+    
+    all_cities = list(expanded_set)
     flights = []
 
     # 2. Fetch Flights
