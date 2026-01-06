@@ -1,5 +1,5 @@
 from app.db.database import engine, Base
-from app.db.models import User, SearchHistory, Itinerary, FlightOption
+from app.db.models import User, SearchHistory, Itinerary, FlightOption, HotelOption
 
 def init_db():
     print("Creating database tables...")

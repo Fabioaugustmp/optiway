@@ -58,4 +58,19 @@ class FlightOption(Base):
     search = relationship("SearchHistory", back_populates="flights")
 
 # Add the relationship to SearchHistory as well
+# Add the relationship to SearchHistory as well
 SearchHistory.flights = relationship("FlightOption", back_populates="search")
+
+class HotelOption(Base):
+    __tablename__ = "hotel_options"
+
+    id = Column(Integer, primary_key=True, index=True)
+    search_id = Column(Integer, ForeignKey("search_history.id"))
+    city = Column(String)
+    name = Column(String)
+    price = Column(Float)
+    rating = Column(Float)
+    
+    search = relationship("SearchHistory", back_populates="hotels")
+
+SearchHistory.hotels = relationship("HotelOption", back_populates="search")
