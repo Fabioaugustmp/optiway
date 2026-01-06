@@ -94,7 +94,10 @@ class GoogleFlightsCrawler(BaseCrawler):
         self.options.add_argument("--disable-dev-shm-usage")
         self.options.add_argument("--window-size=1920,1080")
         self.options.add_argument("--remote-allow-origins=*")
-        self.options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        self.options.add_argument("--disable-blink-features=AutomationControlled")
+        self.options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        self.options.add_experimental_option("useAutomationExtension", False)
+        self.options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")
 
     def _get_driver(self):
         return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=self.options)
@@ -122,13 +125,13 @@ class GoogleFlightsCrawler(BaseCrawler):
                 # Wait for results to load (Look for specific flights UI elements)
                 # Google Flights usually puts listed flights in a role="listitem" or specific class
                 try:
-                    # Wait for at least one price element or flight card
-                    WebDriverWait(driver, 10).until(
-                        EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'R$')]"))
+                    # Wait for at least one price element or flight card. Increased timeout to 30s as requested.
+                    WebDriverWait(driver, 30).until(
+                        EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'R$')] | //div[@role='listitem']"))
                     )
                 except Exception:
-                    print(f"Timeout waiting for results for {origin}->{dest}")
-                    continue
+                    print(f"Timeout waiting for results for {origin}->{dest} (30s). Attempting to parse whatever is visible...")
+                    # Do not continue; proceed to parse what we have
 
                 # Parse content
                 from bs4 import BeautifulSoup
@@ -219,17 +222,68 @@ class GoogleFlightsCrawler(BaseCrawler):
         return []
 
 class AmadeusCrawler(BaseCrawler):
-    def __init__(self, client_id: str, client_secret: str):
+    def __init__(self, client_id: str, client_secret: str, production: bool = False):
+        self.production = production
+        self.client_id = client_id
+        self.client_secret = client_secret
+        
+        # Verify Auth Manually (as requested to follow Manual)
+        self.validate_auth()
+        
         try:
             from amadeus import Client, ResponseError
-            self.amadeus = Client(
-                client_id=client_id,
-                client_secret=client_secret
-            )
+            # Initialize Client (hostname='production' if selected, else default 'test')
+            # Enable debug logging to see full request/response
+            if production:
+                self.amadeus = Client(
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    hostname='production',
+                    log_level='debug'
+                )
+            else:
+                # Explicitly set test environment
+                self.amadeus = Client(
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    hostname='test',
+                    log_level='debug'
+                )
             self.client_ready = True
         except Exception as e:
             print(f"Amadeus Init Error: {e}")
             self.client_ready = False
+
+    def validate_auth(self):
+        """Manual implementation of Auth flow for debugging"""
+        import requests
+        
+        base_url = "https://api.amadeus.com" if self.production else "https://test.api.amadeus.com"
+        token_url = f"{base_url}/v1/security/oauth2/token"
+        
+        print(f"\n--- MANUAL AUTH CHECK ---")
+        print(f"Target URL: {token_url}")
+        
+        try:
+            response = requests.post(
+                token_url,
+                data={
+                    "grant_type": "client_credentials",
+                    "client_id": self.client_id,
+                    "client_secret": self.client_secret
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"}
+            )
+            
+            print(f"Status Code: {response.status_code}")
+            if response.status_code == 200:
+                print("✅ TEST AUTH SUCCESSFUL! Token received.")
+            else:
+                print(f"❌ TEST AUTH FAILED: {response.text}")
+                
+        except Exception as e:
+            print(f"❌ TEST AUTH ERROR: {e}")
+        print(f"--- END MANUAL CHECK ---\n")
 
     def fetch_flights(self, origin: str, destinations: List[str], date: datetime) -> List[Flight]:
         if not self.client_ready:
@@ -241,18 +295,35 @@ class AmadeusCrawler(BaseCrawler):
             if origin == dest: continue
             
             try:
-                # Flight Offers Search
                 date_str = date.strftime("%Y-%m-%d")
-                response = self.amadeus.shopping.flight_offers_search.get(
-                    originLocationCode=self._get_iata(origin),
-                    destinationLocationCode=self._get_iata(dest),
-                    departureDate=date_str,
-                    adults=1,
-                    max=5
-                )
                 
-                if response.data:
-                    for offer in response.data:
+                # Check Cache First
+                from data.database import FlightCache
+                cache = FlightCache()
+                cached_data = cache.get_cached_response(origin, dest, date_str, "AMADEUS")
+                
+                response_data = None
+                
+                if cached_data:
+                    print(f"[CACHE HIT] Using cached data for Amadeus {origin}->{dest}")
+                    response_data = cached_data
+                else:
+                    # API Call
+                    response = self.amadeus.shopping.flight_offers_search.get(
+                        originLocationCode=self._get_iata(origin),
+                        destinationLocationCode=self._get_iata(dest),
+                        departureDate=date_str,
+                        adults=1,
+                        max=5,
+                        currencyCode='BRL'
+                    )
+                    if response.data:
+                        response_data = response.data
+                        # Save to Cache
+                        cache.save_response(origin, dest, date_str, response_data, "AMADEUS")
+                
+                if response_data:
+                    for offer in response_data:
                         # Extract first segment details
                         itineraries = offer['itineraries'][0]
                         segment = itineraries['segments'][0]
@@ -287,7 +358,15 @@ class AmadeusCrawler(BaseCrawler):
                         print(f"[AMADEUS] Found: {carrier_code} | {origin}->{dest} | {currency} {price_total}")
                         
             except Exception as e:
-                print(f"Amadeus API Error for {origin}->{dest}: {e}")
+                # Better error logging for Amadeus
+                if hasattr(e, 'response') and e.response:
+                    print(f"Amadeus API Error for {origin}->{dest}: [{e.response.status_code}] {e.response.body}")
+                else:
+                    print(f"Amadeus API Error for {origin}->{dest}: {e}")
+                
+                # Check for common auth errors
+                if "invalid_client" in str(e) or (hasattr(e, 'response') and e.response.status_code == 401):
+                    print("HINT: Check if your credentials are for the TEST environment. This app defaults to Amadeus TEST environment.")
                 
         return flights
 

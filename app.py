@@ -31,6 +31,7 @@ col_pax1, col_pax2 = st.sidebar.columns(2)
 pax_adultos = col_pax1.number_input("Adultos", 1, 10, 1)
 pax_criancas = col_pax2.number_input("Crianças", 0, 10, 0)
 data_inicio = st.sidebar.date_input("Data de Início", datetime.today() + timedelta(days=30))
+data_fim = st.sidebar.date_input("Data de Retorno", datetime.today() + timedelta(days=40))
 
 # Cidades
 st.sidebar.subheader("Roteiro")
@@ -62,6 +63,7 @@ amadeus_secret = os.getenv("AMADEUS_API_SECRET", "")
 if provider == "Amadeus API":
     amadeus_key = st.sidebar.text_input("Amadeus API Key", value=amadeus_key)
     amadeus_secret = st.sidebar.text_input("Amadeus API Secret", value=amadeus_secret, type="password")
+    use_prod = st.sidebar.checkbox("Usar Ambiente de Produção", value=False)
 
 # Limpeza de input
 origens = [c.strip() for c in origens if c.strip()]
@@ -91,7 +93,13 @@ if st.button("🚀 Calcular Melhor Roteiro", type="primary"):
             crawler = GoogleFlightsCrawler(headless=True)
         elif provider == "Amadeus API":
             if amadeus_key and amadeus_secret:
-                crawler = AmadeusCrawler(amadeus_key, amadeus_secret)
+                # Sanitize inputs
+                clean_key = amadeus_key.strip()
+                clean_secret = amadeus_secret.strip()
+                print(f"Initializing Amadeus with Key ID starting: {clean_key[:6]}...") 
+                print(f"Secret starting: {clean_secret[:4]}...")
+                print(f"Environment: {'PRODUCTION' if use_prod else 'TEST'}")
+                crawler = AmadeusCrawler(clean_key, clean_secret, production=use_prod)
             else:
                 st.warning("⚠️ Credenciais Amadeus não fornecidas. Usando Mock.")
                 crawler = MockCrawler()
