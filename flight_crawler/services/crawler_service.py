@@ -2,6 +2,9 @@ import asyncio
 from typing import List, Dict
 from flight_crawler.core.browser_manager import BrowserManager
 from flight_crawler.scrapers.google_flights import GoogleFlightsScraper
+from flight_crawler.scrapers.latam import LatamScraper
+from flight_crawler.scrapers.azul import AzulScraper
+from flight_crawler.scrapers.gol import GolScraper
 from flight_crawler.core.models import FlightSearchInput, FlightResult
 import logging
 
@@ -9,8 +12,10 @@ class CrawlerService:
     def __init__(self):
         self.browser_manager = BrowserManager()
         self.scrapers = {
-            "google_flights": GoogleFlightsScraper(self.browser_manager)
-            # Add other scrapers here
+            "google_flights": GoogleFlightsScraper(self.browser_manager),
+            "latam": LatamScraper(self.browser_manager),
+            "azul": AzulScraper(self.browser_manager),
+            "gol": GolScraper(self.browser_manager)
         }
         self.logger = logging.getLogger(self.__class__.__name__)
 
