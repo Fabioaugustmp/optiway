@@ -31,6 +31,15 @@ def solve_itinerary(
                 if h.price_per_night < hotel_cost_map[h.city]:
                     hotel_cost_map[h.city] = h.price_per_night
 
+        # Map Car Rental Costs (Min price per city)
+        car_cost_map = {}
+        for c in cars:
+            if c.city not in car_cost_map:
+                car_cost_map[c.city] = c.price_per_day
+            else:
+                if c.price_per_day < car_cost_map[c.city]:
+                    car_cost_map[c.city] = c.price_per_day
+
         total_pax = request.pax_adults + request.pax_children
         if total_pax < 1: total_pax = 1
 
@@ -65,10 +74,12 @@ def solve_itinerary(
                     continue
 
                 h_cost = hotel_cost_map.get(all_cities[j], 0)
+                c_cost = car_cost_map.get(all_cities[j], 0)
                 d_cost = request.daily_cost_per_person
                 days = request.stay_days_per_city
                 
-                stay_cost_total = (h_cost * days) + (d_cost * days * total_pax)
+                # Total stay cost including hotel, daily expenses and car (if requested)
+                stay_cost_total = (h_cost * days) + (c_cost * days) + (d_cost * days * total_pax)
                 
                 total_money = (f_cost * total_pax) + stay_cost_total
                 total_time = time_matrix[i, j]
@@ -115,7 +126,13 @@ def solve_itinerary(
 
         status = LpStatus[prob.status]
         itinerary = []
-        total_cost_val = 0.0
+        
+        costs = {
+            "flight": 0.0,
+            "hotel": 0.0,
+            "car": 0.0,
+            "daily": 0.0
+        }
         total_duration_val = 0
 
         if status == 'Optimal':
@@ -160,7 +177,13 @@ def solve_itinerary(
                             dest_coords=dest_list
                         ))
 
-                        total_cost_val += price
+                        # Accumulate costs for this leg
+                        days = request.stay_days_per_city
+                        costs["flight"] += price * total_pax
+                        costs["hotel"] += hotel_cost_map.get(dest_name, 0) * days
+                        costs["car"] += car_cost_map.get(dest_name, 0) * days
+                        costs["daily"] += request.daily_cost_per_person * days * total_pax
+                        
                         total_duration_val += duration
                         current = next_hop
 
@@ -185,11 +208,14 @@ def solve_itinerary(
             hotels_found=hotels
         )
     
+    total_cost_sum = sum(costs.values())
+    
     return SolverResult(
         status=status,
         itinerary=itinerary,
-        total_cost=float(total_cost_val),
+        total_cost=float(total_cost_sum),
         total_duration=int(total_duration_val),
         alternatives={}, 
+        cost_breakdown=costs,
         hotels_found=hotels 
     )

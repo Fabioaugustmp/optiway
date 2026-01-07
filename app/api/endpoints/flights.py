@@ -129,7 +129,9 @@ def solve_trip(
                 flights.extend(new_flights)
 
     # 3. Fetch Car Rentals
-    cars = crawler.fetch_car_rentals(all_cities)
+    cars = []
+    if request.search_cars:
+        cars = crawler.fetch_car_rentals(all_cities)
 
     # 4. Inject Ground Segments
     ground_legs = generate_ground_segments(all_cities, request.start_date, cars=cars)
