@@ -41,7 +41,7 @@ class AzulScraper(BaseScraper):
         except Exception as e:
              self.logger.error(f"Navigation to Azul failed: {e}")
 
-        return network_results if network_results else self._get_mock_data(search_input)
+        return network_results if network_results else []
 
     def _build_url(self, search_input: FlightSearchInput) -> str:
         # Example: https://www.voeazul.com.br/br/pt/home/selecao-voo?c[0].ds=GRU&c[0].as=GIG&c[0].dd=2024-05-20&p[0].t=ADT&p[0].c=1
@@ -68,16 +68,4 @@ class AzulScraper(BaseScraper):
         await page.mouse.move(random.randint(100, 500), random.randint(100, 500))
         await asyncio.sleep(random.uniform(1, 3))
 
-    def _get_mock_data(self, search_input: FlightSearchInput) -> List[FlightResult]:
-        return [
-            FlightResult(
-                airline="Azul",
-                flight_number="AD4000",
-                departure_time=datetime.now(),
-                arrival_time=datetime.now(),
-                price=400.00,
-                currency="BRL",
-                deep_link="https://www.voeazul.com.br",
-                source_scraper="AzulScraper"
-            )
-        ]
+

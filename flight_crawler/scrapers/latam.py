@@ -47,7 +47,7 @@ class LatamScraper(BaseScraper):
         except Exception as e:
              self.logger.error(f"Navigation to LATAM failed: {e}")
 
-        return network_results if network_results else self._get_mock_data(search_input)
+        return network_results if network_results else []
 
     def _build_url(self, search_input: FlightSearchInput) -> str:
         # Example URL: https://www.latamairlines.com/br/pt/oferta-voos?origin=GRU&destination=GIG&outbound=2024-05-20&adults=1&trip=OW
@@ -71,16 +71,4 @@ class LatamScraper(BaseScraper):
         await page.mouse.move(random.randint(100, 500), random.randint(100, 500))
         await asyncio.sleep(random.uniform(1, 3))
 
-    def _get_mock_data(self, search_input: FlightSearchInput) -> List[FlightResult]:
-        return [
-            FlightResult(
-                airline="LATAM",
-                flight_number="LA3000",
-                departure_time=datetime.now(),
-                arrival_time=datetime.now(),
-                price=350.00,
-                currency="BRL",
-                deep_link="https://www.latamairlines.com",
-                source_scraper="LatamScraper"
-            )
-        ]
+

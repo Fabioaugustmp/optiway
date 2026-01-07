@@ -8,6 +8,7 @@ class FlightSearchInput(BaseModel):
     departure_date: str # YYYY-MM-DD
     return_date: Optional[str] = None
     passengers: int = 1
+    scrapers: Optional[List[str]] = Field(default=None, description="List of scrapers to use (e.g., ['google_flights', 'latam'])")
 
 class FlightResult(BaseModel):
     airline: str

@@ -41,7 +41,7 @@ class GolScraper(BaseScraper):
         except Exception as e:
              self.logger.error(f"Navigation to GOL failed: {e}")
 
-        return network_results if network_results else self._get_mock_data(search_input)
+        return network_results if network_results else []
 
     def _build_url(self, search_input: FlightSearchInput) -> str:
         # Example: https://b2c.voegol.com.br/compra/busca-de-voos?pv=br&ori=GRU&des=GIG&ida=20-05-2024&adt=1
@@ -75,16 +75,4 @@ class GolScraper(BaseScraper):
         await page.mouse.move(random.randint(100, 500), random.randint(100, 500))
         await asyncio.sleep(random.uniform(1, 3))
 
-    def _get_mock_data(self, search_input: FlightSearchInput) -> List[FlightResult]:
-        return [
-            FlightResult(
-                airline="GOL",
-                flight_number="G3-1000",
-                departure_time=datetime.now(),
-                arrival_time=datetime.now(),
-                price=320.00,
-                currency="BRL",
-                deep_link="https://www.voegol.com.br",
-                source_scraper="GolScraper"
-            )
-        ]
+

@@ -13,6 +13,7 @@ class GoogleFlightsScraper(BaseScraper):
 
         # 1. Setup Network Interception (Hybrid Strategy)
         network_results = []
+        results = []
         async def handle_response(response):
             if "batchelor" in response.url or "GetShoppingResults" in response.url: # Common GF patterns
                  try:
@@ -36,26 +37,61 @@ class GoogleFlightsScraper(BaseScraper):
         await self._simulate_human_behavior(page)
 
         # 4. DOM Scrape Fallback (Wait for results)
-        # Selectors update frequently, so we use generic robust selectors where possible
         try:
             # Wait for grid or list of flights
-            await page.wait_for_selector('div[role="main"]', timeout=15000)
+            await page.wait_for_selector('li.pIav2d', timeout=20000)
 
-            # Example selector logic (Note: Google changes classes daily, rely on ARIA or specific attributes)
-            flight_elements = await page.query_selector_all('li.pIav2d') # Placeholder class
+            flight_elements = await page.query_selector_all('li.pIav2d')
+            self.logger.info(f"Found {len(flight_elements)} flight elements on Google Flights")
 
-            # Since we can't guarantee class names in this example without live maintenance,
-            # we return dummy data if no elements found to demonstrate the architecture flow.
-            if not flight_elements and not network_results:
-                 self.logger.warning("No flight elements found via DOM. Returning sample data for structure verification.")
-                 return self._get_mock_data(search_input)
+            for el in flight_elements:
+                try:
+                    # Robust extraction using JS to find elements by content if classes fail
+                    airline = await el.evaluate("""el => {
+                        const operator = el.querySelector('.Ir0Voe span, .sSHqwe.tPgKwe.ogfYpf span, .X8709b span');
+                        if (operator) return operator.innerText;
+                        // Fallback: look for typical airline name positions
+                        return el.innerText.split('\\n')[1] || "Unknown";
+                    }""")
 
-            # Process DOM elements...
+                    price_text = await el.evaluate("""el => {
+                        const price = el.querySelector('span[role="text"][aria-label*="Reais"], .YMlIz.FpEdX.jLMuyc span');
+                        if (price) return price.innerText;
+                        // Fallback: search for R$ in all spans
+                        const spans = Array.from(el.querySelectorAll('span'));
+                        const priceSpan = spans.find(s => s.innerText.includes('R$'));
+                        return priceSpan ? priceSpan.innerText : "0";
+                    }""")
+
+                    # Basic price parsing (e.g., "R$ 3.829" -> 3829.0)
+                    price_val = price_text.split('\n')[0]
+                    price_clean = price_val.replace("R$", "").replace(".", "").replace(",", ".").replace("\xa0", "").strip()
+                    price = float(price_clean) if price_clean else 0.0
+
+                    # Use provided dates as base for datetime objects (times are usually "HH:MM")
+                    # Note: Simplified datetime conversion for POC
+                    base_date = search_input.departure_date
+                    results.append(FlightResult(
+                        airline=airline,
+                        flight_number="N/A", # Often not directly in the main list
+                        departure_time=datetime.now(), # Placeholder for actual parsing
+                        arrival_time=datetime.now(), # Placeholder for actual parsing
+                        price=price,
+                        currency="BRL",
+                        deep_link=page.url,
+                        source_scraper="GoogleFlightsScraper"
+                    ))
+                except Exception as e:
+                    self.logger.warning(f"Failed to parse individual flight: {e}")
+
+            if not results and not network_results:
+                 self.logger.warning("No flight elements successfully parsed via DOM.")
+                 return []
 
         except Exception as e:
             self.logger.error(f"DOM scraping failed: {e}")
 
-        return network_results if network_results else self._get_mock_data(search_input)
+        return results if results else []
 
     def _build_url(self, search_input: FlightSearchInput) -> str:
         # https://www.google.com/travel/flights?q=Flights%20to%20JFK%20from%20LHR%20on%202024-05-20
@@ -76,17 +112,4 @@ class GoogleFlightsScraper(BaseScraper):
         await page.mouse.wheel(0, random.randint(100, 500))
         await asyncio.sleep(random.uniform(0.5, 1.5))
 
-    def _get_mock_data(self, search_input: FlightSearchInput) -> List[FlightResult]:
-        # Provides valid return type for verifying the pipeline even if scraper is blocked/broken
-        return [
-            FlightResult(
-                airline="Mock Airline",
-                flight_number="MA123",
-                departure_time=datetime.now(),
-                arrival_time=datetime.now(),
-                price=123.45,
-                currency="USD",
-                deep_link="https://google.com/flights/example",
-                source_scraper="GoogleFlightsScraper"
-            )
-        ]
+

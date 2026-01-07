@@ -46,5 +46,9 @@ class BaseScraper(ABC):
         """
         Handle errors (e.g., take screenshot, log).
         """
-        # Placeholder for error handling logic
-        pass
+        try:
+            filename = f"error_{self.__class__.__name__}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+            await page.screenshot(path=filename)
+            self.logger.info(f"Error screenshot saved to {filename}")
+        except Exception as e:
+            self.logger.error(f"Failed to take error screenshot: {e}")

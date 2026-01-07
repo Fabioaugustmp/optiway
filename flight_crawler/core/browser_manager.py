@@ -27,6 +27,7 @@ class BrowserManager:
                     '--disable-dev-shm-usage',
                     '--disable-accelerated-2d-canvas',
                     '--disable-gpu',
+                    '--disable-http2',
                 ]
             )
             self.logger.info("Browser launched")
@@ -51,7 +52,8 @@ class BrowserManager:
         if not self.browser:
             await self.start()
 
-        user_agent = self.ua.random
+        # Force a desktop User-Agent for consistent layout across all scrapers
+        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
         # Proxy placeholder logic
         # proxy = {

@@ -32,8 +32,12 @@ class CrawlerService:
 
         tasks = []
         for input_data in search_inputs:
-            for scraper_name, scraper in self.scrapers.items():
-                tasks.append(self._safe_scrape(scraper_name, scraper, input_data))
+            selected_scrapers = input_data.scrapers if input_data.scrapers else list(self.scrapers.keys())
+            for scraper_name in selected_scrapers:
+                if scraper_name in self.scrapers:
+                    tasks.append(self._safe_scrape(scraper_name, self.scrapers[scraper_name], input_data))
+                else:
+                    self.logger.warning(f"Scraper '{scraper_name}' not found.")
 
         # Execute all scraping tasks concurrently
         # Note: We need to manage the BrowserManager lifecycle.
