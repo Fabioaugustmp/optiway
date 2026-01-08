@@ -52,6 +52,21 @@
                     </div>
 
                     <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="useMockData" name="use_mock_data">
+                            <label class="form-check-label" for="useMockData">Usar Dados Mock (Teste)</label>
+                        </div>
+                        <div class="form-check form-switch mt-2">
+                            <input class="form-check-input" type="checkbox" id="searchHotels" name="search_hotels">
+                            <label class="form-check-label" for="searchHotels">🏨 Buscar Hotéis (Beta)</label>
+                        </div>
+                        <div class="form-check form-switch mt-2">
+                            <input class="form-check-input" type="checkbox" id="searchCars" name="search_cars">
+                            <label class="form-check-label" for="searchCars">🚗 Alugar Carro</label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label">Origens (sep. vírgula)</label>
                         <input type="text" class="form-control" name="origin_cities" value="São Paulo" required>
                     </div>
@@ -251,6 +266,9 @@
             is_round_trip: chkRound.checked,
             provider: document.getElementById('dataProvider').value,
             search_hotels: document.getElementById('searchHotels').checked
+            use_mock_data: document.getElementById('useMockData').checked,
+            search_hotels: document.getElementById('searchHotels').checked,
+            search_cars: document.getElementById('searchCars').checked
         };
 
         if (chkRound.checked && formData.get('return_date')) {

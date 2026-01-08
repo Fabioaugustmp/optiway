@@ -412,7 +412,93 @@ class AmadeusCrawler(BaseCrawler):
         return flights
     
     def fetch_hotels(self, cities: List[str]) -> List[Hotel]:
-        return []
+        if not self.client_ready:
+            return []
+            
+        all_hotels = []
+        from data.database import FlightCache
+        cache = FlightCache()
+        
+        # Use a fixed date for generic hotel search cache
+        cache_date = datetime.now().strftime("%Y-%m-%d")
+
+        for city in cities:
+            iata = self._get_iata(city)
+            try:
+                # Check Cache First
+                cached_hotels_json = cache.get_cached_response(city, "HOTEL_SEARCH", cache_date, "AMADEUS_HOTEL")
+                
+                if cached_hotels_json:
+                    print(f"[CACHE HIT] Using cached HOTEL data for {city}")
+                    for h in cached_hotels_json:
+                        all_hotels.append(Hotel(**h))
+                    continue
+
+                print(f"[AMADEUS] Fetching hotels for {city} ({iata})...")
+                
+                # Step 1: Get list of hotels in city
+                hotels_response = self.amadeus.reference_data.locations.hotels.by_city.get(
+                    cityCode=iata,
+                    radius=5,
+                    radiusUnit='KM'
+                )
+                
+                if not hotels_response.data:
+                    continue
+
+                # Take top 10 hotels to check offers
+                top_hotels = hotels_response.data[:10]
+                hotel_ids = [h['hotelId'] for h in top_hotels]
+                
+                city_hotels = []
+                # Step 2: Get Offers for these hotels
+                for h_id in hotel_ids:
+                    try:
+                        offers_response = self.amadeus.shopping.hotel_offers_search.get(
+                            hotelIds=h_id,
+                            adults=1,
+                            currency='BRL'
+                        )
+                        
+                        if offers_response.data:
+                            for offer in offers_response.data:
+                                hotel_data = offer.get('hotel', {})
+                                name = hotel_data.get('name', 'Unknown Hotel')
+                                
+                                offers = offer.get('offers', [])
+                                if not offers: continue
+                                
+                                price = float(offers[0]['price']['total'])
+                                
+                                rating = hotel_data.get('rating')
+                                try: rating = float(rating) if rating else 3.0
+                                except: rating = 3.0
+
+                                h_obj = Hotel(
+                                    city=city,
+                                    name=name,
+                                    price_per_night=price,
+                                    rating=rating
+                                )
+                                city_hotels.append(h_obj)
+                                all_hotels.append(h_obj)
+                    except Exception:
+                        pass
+                
+                # Save city results to cache
+                if city_hotels:
+                    cache.save_response(
+                        city, 
+                        "HOTEL_SEARCH", 
+                        cache_date, 
+                        [h.__dict__ for h in city_hotels], 
+                        "AMADEUS_HOTEL"
+                    )
+
+            except Exception as e:
+                print(f"Amadeus Hotel Error for {city}: {e}")
+                
+        return all_hotels
 
     def fetch_car_rentals(self, cities: List[str]) -> List[CarRental]:
         if not self.client_ready:

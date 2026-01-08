@@ -60,6 +60,7 @@ class TravelRequest(BaseModel):
     stay_days_per_city: int = 1
     daily_cost_per_person: float = 0.0
     search_hotels: bool = False
+    search_cars: bool = False
 
 class ItineraryLeg(BaseModel):
     origin: str
