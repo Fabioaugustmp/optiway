@@ -1,77 +1,169 @@
-# 🌍 Travel Optimizer - Manual do Sistema
+# 🌍 OptiWay: Travel Itinerary Optimization System
+### *Advanced Multi-Objective Travel Planning & Optimization Framework*
 
-O **Travel Optimizer** é uma plataforma avançada de planejamento de viagens que utiliza inteligência artificial e otimização matemática para encontrar o roteiro perfeito, equilibrando **custo** e **tempo**.
+**OptiWay** é uma solução de arquitetura distribuída voltada ao planejamento de viagens multi-destino. O projeto integra técnicas de **Pesquisa Operacional (OR)**, **Web Crawling Distribuído** e **Microserviços** para resolver o problema de otimização de rotas com base em trade-offs de custo financeiro e eficiência temporal.
 
----
-
-## 🚀 Como o Sistema Funciona?
-
-O sistema opera em um fluxo de quatro etapas principais:
-
-### 1. Coleta de Dados (Crawlers)
-Quando você solicita um roteiro, o sistema ativa "robôs" de busca (**Crawlers**) que consultam preços em tempo real:
-- **Amadeus API**: Conecta-se diretamente aos sistemas das companhias aéreas e redes de hotéis.
-- **Google Flights**: Simula buscas via navegador (Selenium) para obter preços de voos públicos.
-- **Cache Inteligente**: Resultados de buscas anteriores são armazenados localmente (SQLite) por 24 horas para garantir respostas instantâneas e economizar chamadas de API.
-
-### 2. Otimização Híbrida (Voo + Solo)
-Diferente de buscadores comuns, o Travel Optimizer entende a geografia:
-- Se um destino não possui aeroporto (ex: Ituiutaba), o sistema calcula automaticamente o trajeto de **carro alugado** a partir do aeroporto mais próximo (ex: Uberlândia).
-- Ele combina voos e trechos terrestres no mesmo itinerário final.
-
-### 3. O "Cérebro" (Solver Matemático)
-O coração do sistema é um modelo de **Otimização Linear Inteira** construído com a biblioteca **PuLP**. 
-- O problema é modelado como uma variação do "Problema do Caixeiro Viajante" (TSP).
-- **Função Objetivo**: O sistema busca minimizar um valor calculado pelo peso que você definiu:
-  - `Escore = (Peso_Custo * Gasto_Total) + (Peso_Tempo * Duração_Total)`
-- **Restrições**: O Solver garante que você visite todas as cidades obrigatórias, respeite a quantidade de dias de estadia e retorne (se solicitado) à cidade de origem.
-
-### 4. Interface do Usuário (UI)
-- **FastAPI Dashboard**: Uma interface web moderna e rápida (usando Bootstrap) onde você configura passageiros, datas e pesos.
-- **Streamlit App**: Uma alternativa visual para análise detalhada de logs e depuração do motor de busca.
-- **Visualização**: Mapas interativos (Leaflet) mostram sua rota, enquanto cartões detalham o custo de cada etapa.
+Este projeto foi desenvolvido com foco em robustez, escalabilidade e aplicação de modelos matemáticos complexos para situações do mundo real.
 
 ---
 
-## 🛠️ Opções Detalhadas
+## 🎓 Fundamentação Científica e Objetivos
 
-| Opção | Descrição |
-| :--- | :--- |
-| **Origens e Destinos** | Você pode sair de múltiplas cidades e visitar diversos destinos em uma única viagem. |
-| **Cidades Obrigatórias** | Garante que o roteiro inclua paradas específicas, mesmo que não sejam o destino final. |
-| **Adultos/Crianças** | Ajusta o custo total das passagens e diárias por pessoa. |
-| **Custo vs Tempo** | Um slider que define sua prioridade. 100% Custo focará no mais barato (mesmo com conexões longas). 100% Tempo focará no mais rápido. |
-| **Buscar Hotéis** | Quando ativo, o sistema busca hotéis reais nas cidades de destino e inclui as diárias no cálculo de custo. |
-| **Alugar Carro** | Quando ativo, o sistema busca custos de aluguel e os utiliza para decidir se vale mais a pena dirigir ou voar entre cidades próximas. |
-| **Dados Mock (Teste)** | Permite testar o sistema sem gastar créditos de API real, gerando dados fictícios rápidos. |
+O núcleo do sistema aborda uma variante do **Problema do Caixeiro Viajante (Traveling Salesperson Problem - TSP)** com restrições adicionais de janelas de tempo, cidades obrigatórias e custos dinâmicos de estadia.
+
+### Modelo Matemático
+Utilizamos a formulação **MTZ (Miller-Tucker-Zemlin)** para eliminação de sub-rotas em um grafo direcionado.
+- **Variáveis de Decisão**: $x_{ij} \in \{0, 1\}$, indicando se o trajeto entre as cidades $i$ e $j$ é selecionado.
+- **Função Objetivo**: 
+  $$\min Z = \alpha \cdot \text{CustoTotal} + \beta \cdot \text{TempoTotal}$$
+  Onde $\alpha$ e $\beta$ são pesos atribuídos pelo usuário para equilibrar despesas financeiras e duração total da logística.
 
 ---
 
-## 🏗️ Arquitetura Técnica
+## 🏗️ Arquitetura do Sistema
 
-```mermaid
-graph TD
-    UI[Frontend - Dashboard / Streamlit] --> API[FastAPI Backend]
-    API --> CRAWLER[Crawler Service]
-    CRAWLER --> CACHE[(Local SQLite Cache)]
-    CRAWLER --> AMADEUS[Amadeus API]
-    CRAWLER --> GOOGLE[Google Flights]
-    API --> SOLVER[PuLP Solver]
-    SOLVER --> RESULT[Itinerário Otimizado]
-    RESULT --> UI
+O sistema é composto por três camadas principais operando de forma assíncrona:
+
+1.  **Core Gateway (FastAPI - Porto 8000)**: Gerencia autenticação (JWT), persistência de dados (SQLAlchemy/SQLite) e orquestração de buscas.
+2.  **Solver Service (FastAPI/PuLP - Porto 8002)**: Microserviço dedicado exclusivamente ao processamento matemático. Isolar o solver permite que a carga computacional pesada não afete a responsividade da API principal.
+3.  **Data Acquisition Layer**: Conjunto de crawlers (Selenium/Amadeus) que realizam o scraping e consumo de APIs externas de aviação.
+
+---
+
+## 🛠️ Requisitos e Instalação
+
+### Pré-requisitos
+- Python 3.10+
+- Navegador Google Chrome (para o Google Flights Scraper)
+- PuLP Solver (CBC está incluído por padrão)
+
+### Configuração do Ambiente
+
+1.  **Clonar o repositório**:
+    ```bash
+    git clone <repository-url>
+    cd traveler-cost
+    ```
+
+2.  **Criar e Ativar Ambiente Virtual**:
+    ```powershell
+    python -m venv .venv
+    .\.venv\Scripts\Activate.ps1
+    ```
+
+3.  **Instalar Dependências**:
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+4.  **Variáveis de Ambiente**:
+    Crie um arquivo `.env` na raiz com as seguintes chaves (exemplo no `.env.example`):
+    ```env
+    AMADEUS_API_KEY="SUA_CHAVE"
+    AMADEUS_API_SECRET="SEU_SEGREDO"
+    SECRET_KEY="SUA_SECRET_KEY_PARA_JWT"
+    ```
+
+---
+
+## 🚀 Guia de Execução (Orquestração de Serviços)
+
+Para que o sistema opere plenamente, os seguintes serviços devem ser iniciados em terminais separados:
+
+### 1. Solver Microservice (Obrigatório para Otimização)
+O solver deve estar rodando para processar os cálculos de rota.
+```powershell
+# No terminal 1
+python -m solver_service.main
+```
+*Disponível em: `http://localhost:8002`*
+
+### 2. Core API Gateway
+Responsável pela interface web e endpoints de negócio.
+```powershell
+# No terminal 2
+python main.py
+```
+*Disponível em: `http://localhost:8000`*
+
+### 3. Flight Crawler Bridge (Opcional - Backend de busca)
+Caso utilize as funcionalidades de crawling intensivo:
+```powershell
+# No terminal 3
+python -m flight_crawler.main
 ```
 
 ---
 
-## 📂 Estrutura de Pastas
+## 📑 Referência da API e Exemplos de Consulta
 
-- `app/api/`: Endpoints do backend.
-- `app/services/solver_service.py`: Lógica matemática da otimização.
-- `app/templates/`: Arquivos HTML da interface web.
-- `data/crawler.py`: Motores de busca de dados reais.
-- `data/database.py`: Gerenciamento do cache local.
+### 🔐 Autenticação
+
+#### Registro de Usuário
+`POST /auth/register`
+```bash
+curl -X POST http://localhost:8000/auth/register \
+-H "Content-Type: application/json" \
+-d '{"email": "user@exemplo.com", "password": "123", "full_name": "Fabio Rodrigues"}'
+```
+
+#### Obter Token (Login)
+`POST /auth/login`
+```bash
+curl -X POST http://localhost:8000/auth/login \
+-H "Content-Type: application/x-www-form-urlencoded" \
+-d "username=user@exemplo.com&password=123"
+```
+
+### 🧠 Otimização de Roteiro
+
+#### Resolver Viagem Completa
+`POST /api/solve`
+Requer o header `Authorization: Bearer <seu_token>`.
+
+**Payload Exemplo:**
+```json
+{
+  "origin_cities": ["São Paulo"],
+  "destination_cities": ["Miami", "Orlando"],
+  "mandatory_cities": ["New York"],
+  "pax_adults": 2,
+  "pax_children": 1,
+  "start_date": "2026-02-01T00:00:00",
+  "weight_cost": 0.7,
+  "weight_time": 0.3,
+  "is_round_trip": true,
+  "stay_days_per_city": 3,
+  "daily_cost_per_person": 150.0,
+  "use_mock_data": true
+}
+```
+
+**Exemplo de Comando cURL:**
+```bash
+curl -X POST http://localhost:8000/api/solve \
+-H "Authorization: Bearer <SEU_TOKEN>" \
+-H "Content-Type: application/json" \
+-d '{...payload_acima...}'
+```
 
 ---
 
-> [!TIP]
-> Para obter os melhores resultados, use pesos equilibrados (ex: 70% Custo, 30% Tempo) para evitar conexões excessivamente longas apenas para economizar poucos reais.
+## 🔍 Monitoramento e Debug
+
+- **Swagger UI (Core)**: `http://localhost:8000/docs`
+- **Swagger UI (Solver)**: `http://localhost:8002/docs`
+- **Dashboards**: Acesse `http://localhost:8000` via navegador para uma experiência visual completa.
+
+---
+
+## 🚧 Solução de Problemas (Troubleshooting)
+
+- **ImportError / No Module Named**: Certifique-se de estar rodando os comandos com `python -m <module>` a partir da raiz do projeto para que o PYTHONPATH seja resolvido corretamente.
+- **Porta 8000/8002 em uso**: Caso ocorra erro de endereço em uso, identifique o processo no Windows com `netstat -ano | findstr :8000` e finalize-o no Gerenciador de Tarefas ou use `taskkill /F /PID <PID>`.
+- **Static Files NotFound**: O sistema exige a pasta `app/static`. Esta pasta é criada automaticamente na inicialização, mas deve existir para o servidor servir os assets.
+
+---
+
+*Documentação gerada como parte do currículo de Pós-Graduação em Engenharia de Software e Otimização Combinatória.*
+
