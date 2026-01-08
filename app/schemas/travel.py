@@ -50,7 +50,10 @@ class TravelRequest(BaseModel):
     start_date: datetime
     return_date: Optional[datetime] = None
     is_round_trip: bool = False
+    # Deprecated: kept for backward compatibility
     use_mock_data: bool = False
+    # Data provider: "Mock Data", "Amadeus API", "Google Flights", "Kayak"
+    provider: Optional[str] = "Mock Data"
     weight_cost: float
     weight_time: float
     allow_open_jaw: bool = True

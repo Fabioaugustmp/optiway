@@ -1,8 +1,11 @@
-from pulp import *
-import numpy as np
+import requests
 from typing import List, Dict
-from app.schemas.travel import Flight, Hotel, CarRental, TravelRequest, SolverResult, ItineraryLeg
+from app.schemas.travel import Flight, Hotel, CarRental, TravelRequest, SolverResult
 from app.services.geo_service import get_coords
+
+
+SOLVER_SERVICE_URL = "http://localhost:8002/api/v1/solve"
+
 
 def solve_itinerary(
     request: TravelRequest,
@@ -10,8 +13,7 @@ def solve_itinerary(
     hotels: List[Hotel],
     cars: List[CarRental]
 ) -> SolverResult:
-
-    print("Starting Solver...")
+    """Call the external solver microservice and return its result."""
     try:
         all_cities = list(set(request.origin_cities + request.destination_cities + request.mandatory_cities))
         n = len(all_cities)
@@ -197,14 +199,12 @@ def solve_itinerary(
                         break
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         return SolverResult(
-            status=f"Error: {str(e)}",
+            status=f"Error: {e}",
             itinerary=[],
             total_cost=0.0,
             total_duration=0,
-            warning_message=f"Solver Crashed: {str(e)}",
+            warning_message=str(e),
             hotels_found=hotels
         )
     

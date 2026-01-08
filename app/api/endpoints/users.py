@@ -4,7 +4,9 @@ from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
 from app.db.database import get_db
-from app.db.models import User, SearchHistory
+from app.db.models import User, SearchHistory, Itinerary
+from fastapi import HTTPException
+import json
 from app.core.security import get_current_user
 
 router = APIRouter()
@@ -33,3 +35,39 @@ def get_user_history(
         .limit(limit)\
         .all()
     return history
+
+
+@router.get("/history/{search_id}")
+def get_history_detail(
+    search_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Return saved itinerary detail for a given search (owner or admin only)."""
+    search = db.query(SearchHistory).filter(SearchHistory.id == search_id).first()
+    if not search:
+        raise HTTPException(status_code=404, detail="Search not found")
+
+    if search.user_id != current_user.id and getattr(current_user, "role", "user") != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    it = db.query(Itinerary).filter(Itinerary.search_id == search_id).first()
+    if not it:
+        raise HTTPException(status_code=404, detail="Itinerary not found for this search")
+
+    try:
+        itinerary_list = json.loads(it.details_json)
+    except Exception:
+        itinerary_list = it.details_json
+
+    resp = {
+        "status": "Saved",
+        "itinerary": itinerary_list,
+        "total_cost": it.total_cost,
+        "total_duration": it.total_duration,
+        "warning_message": None,
+        "alternatives": None,
+        "cost_breakdown": None,
+        "hotels_found": []
+    }
+    return resp
