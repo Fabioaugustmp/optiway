@@ -76,8 +76,9 @@
 
                 if (res.ok) {
                     const data = await res.json();
-                    // Save token in cookie (simplest for now)
-                    document.cookie = `access_token=${data.access_token}; path=/`;
+                    // Save token in cookie with 7-day expiry
+                    const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toUTCString();
+                    document.cookie = `access_token=${data.access_token}; expires=${expires}; path=/`;
                     window.location.href = '/';
                 } else {
                     showAlert('danger', 'Login falhou. Verifique suas credenciais.');

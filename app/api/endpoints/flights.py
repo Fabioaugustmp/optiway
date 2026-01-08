@@ -80,9 +80,7 @@ def solve_trip(
 ):
     # ... (init crawler, graph expansion) ...
     # 1. Init Crawler
-    provider = "Amadeus API"
-    if request.use_mock_data or not settings.AMADEUS_API_KEY:
-        provider = "Mock Data"
+    provider = request.provider or ("Mock Data" if not settings.AMADEUS_API_KEY else "Amadeus API")
 
     crawler = get_crawler(
         provider=provider,
@@ -287,3 +285,67 @@ def solve_trip(
     result.alternatives = alternatives_map
 
     return result
+
+
+@router.get("/itineraries/{itinerary_id}", response_model=SolverResult)
+def get_itinerary_detail(
+    itinerary_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Return saved itinerary details by id. Only the owner or admin can access."""
+    it = db.query(Itinerary).filter(Itinerary.id == itinerary_id).first()
+    if not it:
+        raise HTTPException(status_code=404, detail="Itinerary not found")
+
+    # Ensure ownership
+    try:
+        owner_id = it.search.user_id if it.search else None
+    except Exception:
+        owner_id = None
+
+    if owner_id != current_user.id and getattr(current_user, "role", "user") != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    try:
+        itinerary_list = json.loads(it.details_json)
+    except Exception:
+        # Fallback if details_json is already a Python list
+        itinerary_list = it.details_json
+
+    resp = {
+        "status": "Saved",
+        "itinerary": itinerary_list,
+        "total_cost": it.total_cost,
+        "total_duration": it.total_duration,
+        "warning_message": None,
+        "alternatives": None,
+        "cost_breakdown": None,
+        "hotels_found": []
+    }
+
+    return resp
+
+
+@router.get("/itineraries")
+def list_user_itineraries(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Return a short list of itineraries for the current user to populate the dashboard."""
+    # Join Itinerary -> SearchHistory to filter by user
+    rows = db.query(Itinerary).join(SearchHistory).filter(SearchHistory.user_id == current_user.id).order_by(Itinerary.created_at.desc()).all()
+
+    out = []
+    for it in rows:
+        out.append({
+            "id": it.id,
+            "search_id": it.search_id,
+            "origin": it.search.origin if it.search else None,
+            "destinations": it.search.destinations if it.search else None,
+            "created_at": it.created_at.isoformat() if it.created_at else None,
+            "total_cost": it.total_cost,
+            "total_duration": it.total_duration
+        })
+
+    return out

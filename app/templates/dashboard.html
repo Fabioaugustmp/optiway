@@ -26,6 +26,20 @@
                         <input type="date" class="form-control" name="start_date" id="startDate" required>
                     </div>
 
+                     <div class="mb-3">
+                        <label class="form-label">Fonte de Dados</label>
+                        <select class="form-select" id="dataProvider" name="provider">
+                            <option value="Mock Data" selected>Mocks</option>
+                            <option value="Amadeus API">Amadeus</option>
+                            <option value="Google Flights">Foogle Fly (Google Flights)</option>
+                            <option value="Kayak">Kakak (Kayak)</option>
+                        </select>
+                        <div class="form-check form-switch mt-3">
+                            <input class="form-check-input" type="checkbox" id="searchHotels" name="search_hotels">
+                            <label class="form-check-label" for="searchHotels">🏨 Buscar Hotéis (Beta)</label>
+                        </div>
+                    </div>
+
                     <div class="mb-3">
                         <div class="form-check form-switch mb-2">
                             <input class="form-check-input" type="checkbox" id="isRoundTrip" name="is_round_trip">
@@ -34,17 +48,6 @@
                         <div id="returnDateDiv" class="d-none">
                             <label class="form-label">Data de Retorno</label>
                             <input type="date" class="form-control" name="return_date" id="returnDate">
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="useMockData" name="use_mock_data">
-                            <label class="form-check-label" for="useMockData">Usar Dados Mock (Teste)</label>
-                        </div>
-                        <div class="form-check form-switch mt-2">
-                            <input class="form-check-input" type="checkbox" id="searchHotels" name="search_hotels">
-                            <label class="form-check-label" for="searchHotels">🏨 Buscar Hotéis (Beta)</label>
                         </div>
                     </div>
 
@@ -93,6 +96,7 @@
                 <div id="historyList" class="list-group list-group-flush text-start mt-3">
                     <p class="text-muted text-center">Carregando histórico...</p>
                 </div>
+                <!-- Right column removed: using only search history as source of detail -->
             </div>
         </div>
 
@@ -104,6 +108,24 @@
 
         <!-- Results Container (Injected via JS) -->
         <div id="resultsContainer" class="d-none"></div>
+    </div>
+</div>
+
+<!-- Itinerary Modal -->
+<div class="modal fade" id="itineraryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Detalhes do Itinerário</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="itineraryModalBody">
+                <div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -121,36 +143,67 @@
     today.setDate(today.getDate() + 30);
     document.getElementById('startDate').valueAsDate = today;
 
-    // Load History
+    // Load History (search history) and saved itineraries separately to avoid duplication
     async function loadHistory() {
+        const token = getCookie('access_token');
+        const list = document.getElementById('historyList');
+        list.innerHTML = '';
+
         try {
-            const res = await fetch('/users/history', {
-                headers: { 'Authorization': 'Bearer ' + getCookie('access_token') }
-            });
-            if (res.ok) {
-                const history = await res.json();
-                const list = document.getElementById('historyList');
-                list.innerHTML = '';
-                if (history.length === 0) {
-                    list.innerHTML = '<p class="text-center text-muted">Nenhuma busca recente.</p>';
-                    return;
-                }
-                history.forEach(h => {
-                    const item = document.createElement('a');
-                    item.className = 'list-group-item list-group-item-action';
-                    item.href = '#';
-                    item.innerHTML = `
-                        <div class="d-flex w-100 justify-content-between">
-                            <h6 class="mb-1">${h.origin} ➝ ${h.destinations}</h6>
-                            <small>${new Date(h.created_at).toLocaleDateString()}</small>
-                        </div>
-                        <small class="text-muted">Partida: ${new Date(h.start_date).toLocaleDateString()}</small>
-                    `;
-                    list.appendChild(item);
-                });
+            // Fetch history and itineraries (to enrich with custo/tempo)
+            const [resHist, resItins] = await Promise.all([
+                fetch('/users/history', { headers: { 'Authorization': 'Bearer ' + token } }),
+                fetch('/api/itineraries', { headers: { 'Authorization': 'Bearer ' + token } })
+            ]);
+
+            if (!resHist.ok) {
+                list.innerHTML = '<p class="text-center text-muted">Falha ao carregar histórico.</p>';
+                return;
             }
+
+            const history = await resHist.json();
+            const itineraries = resItins.ok ? await resItins.json() : [];
+            const itinBySearchId = {};
+            itineraries.forEach(it => { if (it.search_id) itinBySearchId[it.search_id] = it; });
+
+            if (!history || history.length === 0) {
+                list.innerHTML = '<p class="text-center text-muted">Nenhuma busca recente.</p>';
+                return;
+            }
+
+            const fmtDuration = (min) => {
+                if (!min && min !== 0) return '-';
+                const h = Math.floor(min / 60);
+                const m = min % 60;
+                return `${h}h ${m}m`;
+            };
+
+            history.forEach(h => {
+                const it = itinBySearchId[h.id];
+                const totalCost = it && typeof it.total_cost === 'number' ? `R$ ${it.total_cost.toFixed(2)}` : '—';
+                const totalTime = it && typeof it.total_duration === 'number' ? fmtDuration(it.total_duration) : '—';
+
+                const item = document.createElement('a');
+                item.className = 'list-group-item list-group-item-action';
+                item.href = '#';
+                item.innerHTML = `
+                    <div class="d-flex w-100 justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">${h.origin} ➝ ${h.destinations}</h6>
+                            <small class="text-muted">Partida: ${new Date(h.start_date).toLocaleDateString()}</small>
+                        </div>
+                        <div class="text-end">
+                            <div class="small"><span class="me-1">💰</span><strong>${totalCost}</strong></div>
+                            <div class="small text-muted"><span class="me-1">⏱️</span>${totalTime}</div>
+                        </div>
+                    </div>
+                `;
+                item.addEventListener('click', (ev) => { ev.preventDefault(); if (h.id) showItineraryModal(h.id); });
+                list.appendChild(item);
+            });
         } catch (e) {
             console.error(e);
+            list.innerHTML = '<p class="text-center text-muted">Erro ao carregar histórico.</p>';
         }
     }
     loadHistory();
@@ -196,7 +249,7 @@
             weight_cost: weightCost,
             weight_time: 1 - weightCost,
             is_round_trip: chkRound.checked,
-            use_mock_data: document.getElementById('useMockData').checked,
+            provider: document.getElementById('dataProvider').value,
             search_hotels: document.getElementById('searchHotels').checked
         };
 
@@ -433,6 +486,56 @@
 
         // Init Map
         initMap(mapSegments);
+    }
+
+    // Show itinerary detail in modal
+    async function showItineraryModal(id) {
+        const modalBody = document.getElementById('itineraryModalBody');
+        modalBody.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>';
+        const modalEl = document.getElementById('itineraryModal');
+        const bsModal = new bootstrap.Modal(modalEl);
+        bsModal.show();
+
+        try {
+            const res = await fetch(`/users/history/${id}`, {
+                headers: { 'Authorization': 'Bearer ' + getCookie('access_token') }
+            });
+            if (!res.ok) {
+                modalBody.innerHTML = `<div class="alert alert-danger">Falha ao carregar detalhamento: ${res.status} ${res.statusText}</div>`;
+                return;
+            }
+            const data = await res.json();
+
+            let html = `
+                <div class="card mb-3">
+                  <div class="card-body">
+                    <h5 class="card-title">Resumo</h5>
+                    <p><strong>Custo total:</strong> R$ ${data.total_cost.toFixed(2)}</p>
+                    <p><strong>Tempo total:</strong> ${(data.total_duration/60).toFixed(1)}h</p>
+                  </div>
+                </div>
+                <div class="card"><div class="card-body"><h5>Trechos</h5><div class="table-responsive"><table class="table"><thead><tr><th>Origem</th><th>Destino</th><th>Cia</th><th>Partida</th><th>Chegada</th><th>Preço</th></tr></thead><tbody>`;
+
+            data.itinerary.forEach(leg => {
+                const f = leg.flight || {};
+                const dep = f.departure_time ? new Date(f.departure_time).toLocaleString() : '-';
+                const arr = f.arrival_time ? new Date(f.arrival_time).toLocaleString() : '-';
+                html += `<tr>
+                    <td>${leg.origin}</td>
+                    <td>${leg.destination}</td>
+                    <td>${f.airline || 'N/A'}</td>
+                    <td>${dep}</td>
+                    <td>${arr}</td>
+                    <td>R$ ${leg.price.toFixed(2)}</td>
+                  </tr>`;
+            });
+
+            html += '</tbody></table></div></div></div>';
+            modalBody.innerHTML = html;
+        } catch (e) {
+            console.error(e);
+            modalBody.innerHTML = `<div class="alert alert-danger">Erro ao carregar detalhamento.</div>`;
+        }
     }
 
     function renderHotels(hotels) {

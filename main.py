@@ -11,6 +11,7 @@ app = FastAPI(title="Viagem Otimizada Enterprise")
 # Mount Static
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
+
 # Include Routers
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 app.include_router(flights.router, prefix="/api", tags=["Flights"])
