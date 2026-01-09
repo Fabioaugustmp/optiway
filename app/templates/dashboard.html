@@ -359,7 +359,8 @@
             }
 
             if (data.warning_message) {
-                msg += `<div class="alert alert-info">💡 <strong>Sugestão:</strong> ${data.warning_message}</div>`;
+                msg += `<div class="alert alert-info">💡 <strong>Sugestão:</strong> ${data.warning_message} <br>
+                <small class="text-muted">(Debug: Encontrou ${data.alternatives ? Object.keys(data.alternatives).length : 0} rotas e ${data.cars_found ? data.cars_found.length : 0} carros)</small></div>`;
             }
             container.innerHTML = msg;
 

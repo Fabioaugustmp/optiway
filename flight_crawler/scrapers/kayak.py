@@ -2,7 +2,7 @@ from typing import List
 from playwright.async_api import Page
 from flight_crawler.core.base_scraper import BaseScraper
 from flight_crawler.core.models import FlightSearchInput, FlightResult, CarSearchInput, CarResult
-from datetime import datetime
+from datetime import datetime, timedelta
 import asyncio
 import random
 import urllib.parse
@@ -36,11 +36,62 @@ class KayakScraper(BaseScraper):
                         price_clean = price_val.replace("R$", "").replace("\xa0", "").replace(".", "").replace(",", ".").strip()
                         price = float(price_clean) if price_clean else 0.0
 
+                        # Time Extraction Logic
+                        times_el = await card.query_selector_all('span[class*="time"], div[class*="time"]')
+                        dep_time_obj = datetime.now()
+                        arr_time_obj = datetime.now()
+                        
+                        found_times = []
+                        for t_el in times_el:
+                            txt = await t_el.inner_text()
+                            # Look for HH:MM pattern
+                            # Look for HH:MM or H:MM pattern
+                            import re
+                            # Matches 08:00, 8:00, 14:30
+                            matches = re.findall(r'\b\d{1,2}:\d{2}\b', txt)
+                            found_times.extend(matches)
+                            if len(found_times) >= 2: break
+                        
+                        if len(found_times) >= 2:
+                            # Parse HH:MM
+                            dep_str = found_times[0]
+                            arr_str = found_times[1]
+                            
+                            base_date = search_input.departure_date
+                            # Handle YYYY-MM-DD string or date obj
+                            if isinstance(base_date, str):
+                                base_date = datetime.strptime(base_date, "%Y-%m-%d").date()
+                            
+                            dep_time_obj = datetime.combine(base_date, datetime.strptime(dep_str, "%H:%M").time())
+                            arr_time_obj = datetime.combine(base_date, datetime.strptime(arr_str, "%H:%M").time())
+                            
+                            # Handle next day arrival (if arr < dep)
+                            if arr_time_obj < dep_time_obj:
+                                arr_time_obj += timedelta(days=1)
+                        else:
+                            # Fallback or specific selector for 'vmXl' (common Kayak class)
+                            # Try finding larger container text
+                            card_text = await card.inner_text()
+                            matches = re.findall(r'\b\d{1,2}:\d{2}\b', card_text)
+                            if len(matches) >= 2:
+                                dep_str = matches[0]
+                                arr_str = matches[1]
+                                base_date = search_input.departure_date
+                                if isinstance(base_date, str):
+                                    base_date = datetime.strptime(base_date, "%Y-%m-%d").date()
+                                dep_time_obj = datetime.combine(base_date, datetime.strptime(dep_str, "%H:%M").time())
+                                arr_time_obj = datetime.combine(base_date, datetime.strptime(arr_str, "%H:%M").time())
+                                if arr_time_obj < dep_time_obj:
+                                     arr_time_obj += timedelta(days=1)
+                            else:
+                                self.logger.warning(f"Could not extract times from card text: {card_text[:50]}...")
+
+
                         results.append(FlightResult(
                             airline=airline,
                             flight_number="N/A",
-                            departure_time=datetime.now(),
-                            arrival_time=datetime.now(),
+                            departure_time=dep_time_obj,
+                            arrival_time=arr_time_obj,
                             price=price,
                             currency="BRL",
                             deep_link=page.url,
