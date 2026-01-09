@@ -277,6 +277,7 @@ def solve_trip(
             alternatives_map[key].append(f)
     
     result.alternatives = alternatives_map
+    result.hotels_found = hotels
 
     return result
 

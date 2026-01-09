@@ -261,7 +261,8 @@ class FlightCrawlerProxy(BaseCrawler):
                         stops=f.get("stops", 0),
                         baggage=f.get("baggage", "N/A"),
                         flight_number=f.get("flight_number", "N/A"),
-                        details=f.get("deep_link", "")
+                        details=f.get("deep_link", ""),
+                        deep_link=f.get("deep_link", "")
                     ))
             
             return flights
@@ -309,7 +310,8 @@ class FlightCrawlerProxy(BaseCrawler):
                         city=c.get("city") or cities[0],
                         company=c.get("company"),
                         price_per_day=float(c.get("price", 0)) / 2, # Assuming 2-day search
-                        model=c.get("model")
+                        model=c.get("model"),
+                        deep_link=c.get("deep_link", "")
                     ))
             return cars
         except Exception as e:

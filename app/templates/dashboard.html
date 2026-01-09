@@ -445,10 +445,18 @@
             const depTime = fmtTime(flight.departure_time);
             const arrTime = fmtTime(flight.arrival_time);
 
-            // Book link if available in details
-            let detailsDisplay = `<span class="badge bg-secondary">${flight.stops || 0} paradas</span>`;
-            if (flight.details && flight.details.startsWith('http')) {
-                detailsDisplay += `<br><a href="${flight.details}" target="_blank" class="btn btn-sm btn-outline-primary mt-1">Ver Voo ↗</a>`;
+            // Book link if available
+            let detailsDisplay = `<span class="badge bg-secondary">${flight.stops} paradas</span>`;
+
+            // Check deep_link field first, then fallback to details if it's a URL
+            let link = flight.deep_link;
+            if (!link && flight.details && flight.details.startsWith('http')) {
+                link = flight.details;
+            }
+
+            if (link) {
+                const btnLabel = isCar ? "Alugar ↗" : "Reservar ↗";
+                detailsDisplay += `<br><a href="${link}" target="_blank" class="btn btn-sm btn-primary mt-1 text-white">${btnLabel}</a>`;
             }
 
             rows += `
