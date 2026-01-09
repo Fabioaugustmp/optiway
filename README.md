@@ -78,3 +78,64 @@ graph TD
 
 
 ## Colocar para rodar em docker
+
+## ⚙️ Execução dos Serviços
+
+O projeto possui três serviços principais. Você pode executá-los localmente via Python/uvicorn ou usando Docker Compose.
+
+### Execução local (Python)
+
+- Backend (`main`):
+  - Instale dependências: `pip install -r requirements.txt`
+  - Execute: `uvicorn main:app --host 0.0.0.0 --port 8000 --reload`
+
+- Flight Crawler (`flight_crawler.main`):
+  - Dependências do crawler: `pip install -r flight_crawler/requirements.txt`
+  - Instalar navegadores (Playwright): `python -m playwright install --with-deps`
+  - Execute: `uvicorn flight_crawler.main:app --host 0.0.0.0 --port 8001 --reload`
+
+- Solver Service (`solver_service.main`):
+  - Reaproveita `requirements.txt` do projeto: `pip install -r requirements.txt`
+  - Execute: `uvicorn solver_service.main:app --host 0.0.0.0 --port 8002 --reload`
+
+### Execução com Docker Compose
+
+Use o arquivo `docker-compose.yml` para subir os três serviços:
+
+```
+docker compose up --build
+```
+
+Serviços disponíveis:
+- API Backend: http://localhost:8000
+- Flight Crawler: http://localhost:8001
+- Solver Service: http://localhost:8002
+
+Defina variáveis de ambiente quando necessário (por exemplo, AMADEUS):
+
+```
+export AMADEUS_API_KEY="sua_chave"
+export AMADEUS_API_SECRET="seu_segredo"
+docker compose up --build
+```
+
+## 📑 Documentação das APIs
+
+Resumo das principais APIs e links para detalhes:
+
+- Backend (FastAPI):
+  - Autenticação: `/auth/register`, `/auth/login`
+  - Localizações: `/api/locations/search`, `/api/locations/validate`
+  - Viagens: `/api/solve`, `/api/itineraries`, `/api/itineraries/{id}`
+  - Usuários: `/users/history`, `/users/history/{search_id}`
+  - Detalhes e exemplos: ver [docs/main-service.md](docs/main-service.md)
+
+- Flight Crawler:
+  - Crawling de voos: `POST /api/v1/crawl`
+  - Crawling de carros: `POST /api/v1/crawl-cars`
+  - Detalhes e exemplos: ver [docs/flight-crawler-service.md](docs/flight-crawler-service.md)
+
+- Solver Service:
+  - Resolver itinerário: `POST /api/v1/solve`
+  - Health/Info: `GET /api/v1/health`, `GET /api/v1/info`
+  - Detalhes e exemplos: ver [docs/solver-service.md](docs/solver-service.md)

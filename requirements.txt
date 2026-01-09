@@ -6,6 +6,7 @@ python-jose[cryptography]
 python-multipart
 jinja2
 httpx
+email-validator
 streamlit
 pandas
 numpy
