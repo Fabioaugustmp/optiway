@@ -1,0 +1,358 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    /* Reuse consistent styles */
+    .card-history {
+        @apply bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden;
+    }
+</style>
+
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    <!-- Header -->
+    <div class="mb-10 flex justify-between items-end">
+        <div>
+            <h1 class="text-3xl font-serif font-bold text-brand-navy">Minhas Viagens</h1>
+            <p class="text-gray-500 mt-2">Histórico de buscas e itinerários salvos.</p>
+        </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+        <!-- List Sidebar -->
+        <div class="lg:col-span-1 space-y-4">
+            <div class="relative">
+                <input type="text" id="filterInput" placeholder="Filtrar por cidade..."
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-navy outline-none text-sm">
+                <span class="absolute right-3 top-2.5 text-gray-400">🔍</span>
+            </div>
+
+            <div id="historyList" class="space-y-3 max-h-[800px] overflow-y-auto pr-2">
+                <!-- Items injected here -->
+                <div class="text-center py-10">
+                    <div
+                        class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-brand-navy border-t-transparent">
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2">Carregando histórico...</p>
+                </div>
+            </div>
+
+            <div id="paginationControls"
+                class="flex justify-between items-center text-sm text-gray-500 pt-4 border-t border-gray-100 hidden">
+                <button id="prevPage" class="hover:text-brand-navy disabled:opacity-50">← Anterior</button>
+                <span id="pageIndicator">Página 1</span>
+                <button id="nextPage" class="hover:text-brand-navy disabled:opacity-50">Próxima →</button>
+            </div>
+        </div>
+
+        <!-- Detail View Area -->
+        <div class="lg:col-span-2">
+            <!-- Empty State -->
+            <div id="emptyDetailState"
+                class="bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl h-96 flex flex-col items-center justify-center text-center p-8">
+                <div class="text-4xl mb-4 opacity-20">✈️</div>
+                <h3 class="text-gray-400 font-bold text-lg">Selecione uma viagem</h3>
+                <p class="text-gray-400 text-sm max-w-xs">Clique em um item da lista ao lado para ver os detalhes
+                    completos, mapas e alternativas.</p>
+            </div>
+
+            <!-- Loading State -->
+            <div id="loadingDetailState" class="hidden h-96 flex flex-col items-center justify-center text-center">
+                <div
+                    class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-brand-navy border-t-transparent">
+                </div>
+            </div>
+
+            <!-- Content State -->
+            <div id="detailContent" class="hidden bg-white rounded-xl shadow-lg border border-gray-100 p-6">
+                <!-- Content injected via JS -->
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    const getCookie = (name) => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+    };
+
+    let currentPage = 0;
+    const limit = 10;
+    let currentHistory = [];
+
+    // --- Init ---
+    document.addEventListener('DOMContentLoaded', () => {
+        loadHistory();
+    });
+
+    async function loadHistory() {
+        const list = document.getElementById('historyList');
+        // list.innerHTML = '...'; // Keep spinner
+
+        try {
+            const res = await fetch(`/users/history?skip=${currentPage * limit}&limit=${limit}`, {
+                headers: { 'Authorization': 'Bearer ' + getCookie('access_token') }
+            });
+            if (!res.ok) throw new Error("Failed to load history");
+
+            const data = await res.json();
+            currentHistory = data;
+            renderList(data);
+
+            // Updates pagination UI
+            document.getElementById('paginationControls').classList.remove('hidden');
+            document.getElementById('pageIndicator').innerText = `Página ${currentPage + 1}`;
+            document.getElementById('prevPage').disabled = currentPage === 0;
+            document.getElementById('nextPage').disabled = data.length < limit;
+
+        } catch (err) {
+            console.error(err);
+            list.innerHTML = `<p class="text-red-500 text-sm text-center">Erro ao carregar.</p>`;
+        }
+    }
+
+    function renderList(items) {
+        const list = document.getElementById('historyList');
+        list.innerHTML = '';
+
+        if (items.length === 0) {
+            list.innerHTML = `<p class="text-gray-400 text-sm text-center py-4">Nenhuma viagem encontrada.</p>`;
+            return;
+        }
+
+        items.forEach(item => {
+            const date = new Date(item.created_at).toLocaleDateString([], { day: '2-digit', month: '2-digit', year: 'numeric' });
+            // const time = new Date(item.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+
+            const div = document.createElement('div');
+            div.className = 'card-history p-4 cursor-pointer border-l-4 border-l-transparent hover:border-l-brand-red';
+            div.innerHTML = `
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded">${date}</span>
+                    <span class="text-xs font-mono text-gray-300">#${item.id}</span>
+                </div>
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="font-bold text-gray-800">${item.origin}</span>
+                    <span class="text-gray-400">➝</span>
+                    <span class="font-bold text-gray-800">${item.destinations}</span>
+                </div>
+            `;
+
+            div.addEventListener('click', () => {
+                // Highlight active
+                document.querySelectorAll('.card-history').forEach(el => {
+                    el.classList.remove('border-l-brand-red', 'bg-blue-50');
+                    el.classList.add('border-l-transparent', 'bg-white');
+                });
+                div.classList.remove('border-l-transparent', 'bg-white');
+                div.classList.add('border-l-brand-red', 'bg-blue-50');
+
+                loadDetail(item.id);
+            });
+
+            list.appendChild(div);
+        });
+    }
+
+    // Pagination Handlers
+    document.getElementById('prevPage').addEventListener('click', () => {
+        if (currentPage > 0) { currentPage--; loadHistory(); }
+    });
+    document.getElementById('nextPage').addEventListener('click', () => {
+        currentPage++; loadHistory();
+    });
+
+    // --- Detail View Logic ---
+    async function loadDetail(searchId) {
+        const empty = document.getElementById('emptyDetailState');
+        const loader = document.getElementById('loadingDetailState');
+        const content = document.getElementById('detailContent');
+
+        empty.classList.add('hidden');
+        content.classList.add('hidden');
+        loader.classList.remove('hidden');
+
+        try {
+            const res = await fetch(`/users/history/${searchId}`, {
+                headers: { 'Authorization': 'Bearer ' + getCookie('access_token') }
+            });
+            if (!res.ok) throw new Error("Fetch failed");
+            const data = await res.json();
+
+            renderDetailView(content, data);
+
+            loader.classList.add('hidden');
+            content.classList.remove('hidden');
+
+        } catch (err) {
+            console.error(err);
+            loader.innerHTML = `<p class="text-red-500">Erro ao carregar detalhes.</p>`;
+        }
+    }
+
+    // Reuse logic from dashboard (modified for context)
+    function renderDetailView(container, data) {
+        if (!data || !data.itinerary) {
+            container.innerHTML = '<p class="text-gray-500 text-center">Dados corrompidos ou indisponíveis.</p>';
+            return;
+        }
+
+        const flightCost = data.cost_breakdown?.flight || 0;
+        const carCost = data.cost_breakdown?.car || 0;
+        const hasCar = carCost > 0;
+
+        // Header
+        let html = `
+            <div class="flex justify-between items-start mb-6 border-b border-gray-100 pb-4">
+                <div>
+                     <h2 class="text-2xl font-serif font-bold text-brand-navy mb-1">${data.itinerary[0].origin} ➝ ${data.itinerary[data.itinerary.length - 1].destination}</h2>
+                     <p class="text-sm text-gray-500">Viagem salva</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-3xl font-bold text-brand-red">R$ ${data.total_cost.toFixed(2)}</p>
+                    <p class="text-xs text-gray-400">Total Estimado</p>
+                </div>
+            </div>
+        `;
+
+        // Summary
+        html += `
+             <div class="flex gap-4 mb-6">
+                <span class="px-3 py-1 bg-gray-100 text-gray-600 rounded text-xs font-bold uppercase tracking-wide flex items-center gap-1">
+                    ⏱ ${(data.total_duration / 60).toFixed(1)} Horas
+                </span>
+                ${hasCar ? `
+                <span class="px-3 py-1 bg-green-100 text-green-700 rounded text-xs font-bold uppercase tracking-wide flex items-center gap-1">
+                    🚗 Carro Incluso
+                </span>` : ''}
+            </div>
+        `;
+
+        // Tabs
+        html += `
+            <div class="mb-6 border-b border-gray-200">
+                <div class="flex space-x-6">
+                    <button class="pb-2 border-b-2 border-brand-navy font-bold text-brand-navy text-sm tab-btn" data-target="hist-itinerary">ITINERÁRIO</button>
+                    <button class="pb-2 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm tab-btn" data-target="hist-map">MAPA</button>
+                    <button class="pb-2 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm tab-btn" data-target="hist-alternatives">ALTERNATIVAS (${data.alternatives ? Object.keys(data.alternatives).length : 0})</button>
+                    <button class="pb-2 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm tab-btn" data-target="hist-hotels">HOTÉIS</button>
+                </div>
+            </div>
+        `;
+
+        // Content Area
+        const mapSegments = [];
+
+        // Tab: Itinerary
+        html += `<div id="hist-itinerary" class="tab-pane block space-y-4">`;
+        data.itinerary.forEach((leg, idx) => {
+            const flight = leg.flight || {};
+            const isCar = flight.airline && (flight.airline.includes('Carro') || flight.airline.includes('Aluguel'));
+            const dep = flight.departure_time ? new Date(flight.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+
+            if (leg.origin_coords && leg.dest_coords) {
+                mapSegments.push({ from: leg.origin_coords, to: leg.dest_coords, from_name: leg.origin, to_name: leg.destination });
+            }
+
+            html += `
+                <div class="flex items-center gap-4 p-4 border rounded-lg ${isCar ? 'border-green-200 bg-green-50/50' : 'border-gray-200'}">
+                    <div class="w-12 text-2xl text-center">${isCar ? '🚗' : '✈️'}</div>
+                    <div class="flex-1">
+                        <div class="flex justify-between mb-1">
+                            <span class="font-bold text-gray-800">${leg.origin} ➝ ${leg.destination}</span>
+                            <span class="font-mono text-gray-500 text-xs text-right">${leg.duration} min</span>
+                        </div>
+                        <div class="text-sm text-gray-600">${flight.airline} • ${dep}</div>
+                    </div>
+                </div>
+             `;
+        });
+        html += `</div>`;
+
+        // Tab: Map
+        html += `<div id="hist-map" class="tab-pane hidden">
+            <div id="historyMap" class="w-full h-80 bg-gray-100 rounded-lg"></div>
+        </div>`;
+
+        // Tab: Alternatives
+        html += `<div id="hist-alternatives" class="tab-pane hidden">`;
+        if (data.alternatives) {
+            html += `<div class="space-y-2">`;
+            Object.keys(data.alternatives).forEach(key => {
+                const items = data.alternatives[key];
+                html += `<div class="border rounded p-3">
+                      <div class="font-bold text-sm mb-2 text-gray-700">${key} (${items.length})</div>
+                      <div class="text-xs text-gray-500 space-y-1">
+                          ${items.slice(0, 3).map(f => `<div>${f.airline} - R$ ${f.price}</div>`).join('')}
+                          ${items.length > 3 ? `<div class="italic text-gray-400">+ ${items.length - 3} mais...</div>` : ''}
+                      </div>
+                  </div>`;
+            });
+            html += `</div>`;
+        } else {
+            html += `<p class="text-gray-400">Sem alternativas salvas.</p>`;
+        }
+        html += `</div>`;
+
+        // Tab: Hotels
+        html += `<div id="hist-hotels" class="tab-pane hidden">`;
+        if (data.hotels_found && data.hotels_found.length > 0) {
+            html += `<div class="grid grid-cols-2 gap-4">`;
+            data.hotels_found.forEach(h => {
+                html += `<div class="border rounded p-3 text-sm"><div class="font-bold">${h.name}</div><div class="text-gray-500">R$ ${h.price_total}</div></div>`;
+            });
+            html += `</div>`;
+        } else {
+            html += `<p class="text-gray-400">Nenhum hotel salvo.</p>`;
+        }
+        html += `</div>`;
+
+        container.innerHTML = html;
+
+        // Tab Events
+        container.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                container.querySelectorAll('.tab-btn').forEach(b => {
+                    b.classList.remove('border-brand-navy', 'text-brand-navy', 'font-bold');
+                    b.classList.add('border-transparent', 'text-gray-500');
+                });
+                btn.classList.add('border-brand-navy', 'text-brand-navy', 'font-bold');
+                btn.classList.remove('border-transparent', 'text-gray-500');
+
+                container.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
+                const target = document.getElementById(btn.dataset.target);
+                target.classList.remove('hidden');
+
+                if (btn.dataset.target === 'hist-map') {
+                    setTimeout(() => initHistoryMap(mapSegments), 200);
+                }
+            });
+        });
+    }
+
+    // Map Helper
+    function initHistoryMap(segments) {
+        if (window.historyMapInst) { window.historyMapInst.remove(); }
+        const map = L.map('historyMap');
+        window.historyMapInst = map;
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OSM' }).addTo(map);
+
+        const bounds = [];
+        segments.forEach(s => {
+            const line = [[s.from.lat, s.from.lon], [s.to.lat, s.to.lon]];
+            L.polyline(line, { color: '#1B0088' }).addTo(map);
+            bounds.push(line[0], line[1]);
+        });
+        if (bounds.length) map.fitBounds(bounds, { padding: [20, 20] });
+    }
+
+</script>
+{% endblock %}

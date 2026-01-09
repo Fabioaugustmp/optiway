@@ -66,3 +66,11 @@ async def itinerary_page(request: Request, itinerary_id: int, db: Session = Depe
         return RedirectResponse(url="/login")
 
     return templates.TemplateResponse("itinerary_detail.html", {"request": request, "itinerary_id": itinerary_id})
+
+@router.get("/history", response_class=HTMLResponse)
+async def history_page(request: Request):
+    """Render the history list page."""
+    token = request.cookies.get("access_token")
+    if not token:
+        return RedirectResponse(url="/login")
+    return templates.TemplateResponse("history.html", {"request": request})

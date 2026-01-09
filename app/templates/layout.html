@@ -1,48 +1,186 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR" class="antialiased">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Viagem Otimizada{% endblock %}</title>
-    <!-- Favicon SVG -->
-    <link rel="shortcut icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'&gt;&lt;text y='.9em' font-size='90'&gt;✈️&lt;/text&gt;&lt;/svg&gt;">
-    <!-- Bootstrap 5 CSS -->
+    <!-- Favicon -->
+    <link rel="shortcut icon"
+        href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'&gt;&lt;text y='.9em' font-size='90'&gt;✈️&lt;/text&gt;&lt;/svg&gt;">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Open Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                        serif: ['"Playfair Display"', 'ui-serif', 'Georgia', 'serif'],
+                    },
+                    colors: {
+                        brand: {
+                            navy: '#1B0088',   /* Latam-ish Blue */
+                            red: '#E8114B',    /* Latam-ish Red */
+                            gold: '#C6A974',   /* Emirates-ish Gold */
+                            dark: '#0f172a',
+                            light: '#f8fafc',
+                            gray: '#64748b'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Bootstrap 5 CSS (Keeping for Leaflet/Components compatibility if needed, but avoiding conflicts) -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <!-- Fonts: Open Sans for UI, Playfair Display for Headings (Sober/Premium feel) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&display=swap"
+        rel="stylesheet">
+
     <style>
-        body { background-color: #f8f9fa; }
-        .navbar-brand { font-weight: bold; color: #0d6efd !important; }
-        .footer { margin-top: 50px; padding: 20px; background: #fff; text-align: center; border-top: 1px solid #e9ecef; }
+        /* Overrides */
+        body {
+            font-family: 'Open Sans', sans-serif;
+            background-color: #f1f5f9;
+            /* Slate-100 */
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+            font-family: 'Playfair Display', serif;
+        }
+
+        .nav-link-custom {
+            position: relative;
+        }
+
+        .nav-link-custom::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 2px;
+            bottom: -2px;
+            left: 0;
+            background-color: #E8114B;
+            transition: width 0.3s;
+        }
+
+        .nav-link-custom:hover::after {
+            width: 100%;
+        }
     </style>
     {% block head %}{% endblock %}
 </head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
-        <div class="container">
-            <a class="navbar-brand" href="/">✈️ Viagem Otimizada</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item"><a class="nav-link" href="/">Dashboard</a></li>
-                    <li class="nav-item"><a class="nav-link" href="/history">Histórico</a></li>
-                    <li class="nav-item"><a class="nav-link text-danger" href="/logout" onclick="logout()">Sair</a></li>
-                </ul>
+
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Premium Navbar -->
+    <nav class="bg-brand-navy shadow-md z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-20">
+                <!-- Brand -->
+                <div class="flex items-center space-x-4">
+                    <a href="/" class="flex items-center space-x-2 no-underline group">
+                        <div class="bg-white/10 p-2 rounded-full transition group-hover:bg-white/20">
+                            <span class="text-2xl">✈️</span>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-white text-xl font-bold tracking-wide font-serif">VIAGEM OTIMIZADA</span>
+                            <span class="text-white/60 text-[10px] uppercase tracking-widest">Enterprise Class</span>
+                        </div>
+                    </a>
+                </div>
+
+                <!-- Desktop Menu -->
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="/"
+                        class="text-white/90 hover:text-white font-medium text-sm uppercase tracking-wide nav-link-custom no-underline transition">Dashboard</a>
+                    <a href="/history"
+                        class="text-white/90 hover:text-white font-medium text-sm uppercase tracking-wide nav-link-custom no-underline transition">Minhas
+                        Viagens</a>
+
+                    <div class="border-r border-white/20 h-6 mx-2"></div>
+
+                    <div class="flex items-center space-x-3">
+                        <span class="text-white/80 text-sm">Olá, Viajante</span>
+                        <a href="/logout" onclick="logout()"
+                            class="text-white hover:text-brand-red transition no-underline" title="Sair">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Mobile Button -->
+                <div class="md:hidden flex items-center">
+                    <button type="button" class="text-white hover:text-gray-200 focus:outline-none"
+                        data-bs-toggle="collapse" data-bs-target="#mobileMenu">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Menu -->
+        <div class="collapse md:hidden bg-brand-dark" id="mobileMenu">
+            <div class="px-4 pt-2 pb-4 space-y-1">
+                <a href="/"
+                    class="block px-3 py-2 text-white hover:bg-white/10 rounded-md text-base font-medium no-underline">Dashboard</a>
+                <a href="/history"
+                    class="block px-3 py-2 text-white hover:bg-white/10 rounded-md text-base font-medium no-underline">Minhas
+                    Viagens</a>
+                <a href="/logout" onclick="logout()"
+                    class="block px-3 py-2 text-red-400 hover:bg-white/10 rounded-md text-base font-medium no-underline">Sair</a>
             </div>
         </div>
     </nav>
 
-    <div class="container mt-4">
+    <!-- Content -->
+    <main class="flex-grow">
         {% block content %}{% endblock %}
-    </div>
+    </main>
 
-    <div class="footer text-muted">
-        <small>© 2024 Viagem Otimizada AI. Enterprise Edition.</small>
-    </div>
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-200 mt-12 py-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center">
+            <div class="mb-4 md:mb-0">
+                <div class="flex items-center space-x-2">
+                    <span class="text-brand-navy font-bold font-serif text-lg">VIAGEM OTIMIZADA</span>
+                </div>
+                <p class="text-sm text-gray-500 mt-1">Soluções inteligentes para sua jornada.</p>
+            </div>
+            <div class="flex space-x-6 text-sm text-gray-500">
+                <a href="#" class="hover:text-brand-navy transition no-underline">Termos de Uso</a>
+                <a href="#" class="hover:text-brand-navy transition no-underline">Privacidade</a>
+                <a href="#" class="hover:text-brand-navy transition no-underline">Suporte</a>
+            </div>
+            <div class="mt-4 md:mt-0 text-sm text-gray-400">
+                &copy; 2026 Enterprise Edition.
+            </div>
+        </div>
+    </footer>
 
-    <!-- Bootstrap JS -->
+    <!-- Bootstrap JS (Dependency for some existing scripts) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function logout() {
@@ -52,4 +190,5 @@
     </script>
     {% block scripts %}{% endblock %}
 </body>
+
 </html>

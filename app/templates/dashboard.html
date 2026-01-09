@@ -1,1051 +1,299 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<style>
-    .autocomplete-results {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        background: white;
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        z-index: 1050;
-        max-height: 250px;
-        overflow-y: auto;
-    }
-
-    .autocomplete-item {
-        padding: 10px 15px;
-        cursor: pointer;
-        border-bottom: 1px solid #eee;
-    }
-
-    .autocomplete-item:last-child {
-        border-bottom: none;
-    }
-
-    .autocomplete-item:hover {
-        background-color: #f8f9fa;
-        color: #0d6efd;
-    }
-
-    .autocomplete-item .small {
-        font-size: 0.8em;
-        display: block;
-    }
 </style>
-<div class="row">
-    <!-- Config Panel -->
-    <div class="col-md-4 mb-4">
-        <div class="card shadow-sm">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">🛠️ Configurar Roteiro</h5>
-            </div>
-            <div class="card-body">
-                <form id="searchForm">
-                    <div class="row g-2 mb-3">
-                        <div class="col">
-                            <label class="form-label">Adultos</label>
-                            <input type="number" class="form-control" name="pax_adults" value="1" min="1">
+
+<!-- Hero Search Section -->
+<div class="pb-20 pt-10 px-4 sm:px-6 lg:px-8 -mt-6"
+    style="background: linear-gradient(rgba(27, 0, 136, 0.05), rgba(27, 0, 136, 0.05)), url('https://images.unsplash.com/photo-1436491865332-7a61a109cc05?ixlib=rb-4.0.3&auto=format&fit=crop&w=2074&q=80'); background-size: cover; background-position: center; background-attachment: fixed;">
+    <!-- Negative margin to touch navbar if needed, or just standard padding -->
+    <div class="max-w-7xl mx-auto">
+        <div class="text-center py-10">
+            <h1 class="text-4xl md:text-5xl font-serif font-bold text-brand-navy mb-4 drop-shadow-sm">Para onde você
+                quer ir?</h1>
+            <p class="text-lg text-gray-600 max-w-2xl mx-auto">Descubra rotas otimizadas com o melhor custo-benefício do
+                mercado.</p>
+        </div>
+
+        <!-- Search Widget -->
+        <div class="bg-white rounded-2xl shadow-2xl p-6 md:p-8 transform -translate-y-4">
+            <form id="searchForm">
+                <!-- Trip Type & Passengers Row -->
+                <div class="flex flex-wrap items-center justify-between mb-6 gap-4 border-b border-gray-100 pb-4">
+                    <div class="flex items-center space-x-6">
+                        <label class="flex items-center cursor-pointer group">
+                            <input type="radio" name="trip_type" class="w-4 h-4 text-brand-navy focus:ring-brand-navy"
+                                checked>
+                            <span class="ml-2 text-gray-700 font-medium group-hover:text-brand-navy transition">Ida (Só
+                                Ida)</span>
+                        </label>
+                        <label class="flex items-center cursor-pointer group">
+                            <input type="checkbox" id="isRoundTrip" name="is_round_trip"
+                                class="w-4 h-4 text-brand-navy rounded focus:ring-brand-navy">
+                            <span class="ml-2 text-gray-700 font-medium group-hover:text-brand-navy transition">Ida e
+                                Volta</span>
+                        </label>
+                    </div>
+
+                    <div class="flex items-center space-x-4">
+                        <div class="flex items-center space-x-2 bg-gray-50 px-3 py-1 rounded-md border border-gray-200">
+                            <span class="text-gray-500 text-sm">Adultos</span>
+                            <input type="number" name="pax_adults" value="1" min="1"
+                                class="w-12 bg-transparent border-none focus:ring-0 text-center font-bold text-brand-navy p-0">
                         </div>
-                        <div class="col">
-                            <label class="form-label">Crianças</label>
-                            <input type="number" class="form-control" name="pax_children" value="0" min="0">
+                        <div class="flex items-center space-x-2 bg-gray-50 px-3 py-1 rounded-md border border-gray-200">
+                            <span class="text-gray-500 text-sm">Crianças</span>
+                            <input type="number" name="pax_children" value="0" min="0"
+                                class="w-12 bg-transparent border-none focus:ring-0 text-center font-bold text-brand-navy p-0">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Inputs Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+
+                    <!-- Origin -->
+                    <div class="md:col-span-3 relative group">
+                        <label
+                            class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Origem</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <span class="text-gray-400">🛫</span>
+                            </div>
+                            <input type="text" name="origin_cities" value="São Paulo"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-navy focus:border-brand-navy transition duration-200 outline-none text-gray-800 bg-white pl-10 autocomplete-location font-semibold"
+                                placeholder="Cidade ou Aeroporto" autocomplete="off" required>
+                            <div
+                                class="autocomplete-results absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-64 overflow-y-auto mt-1 divide-y divide-gray-100 hidden">
+                            </div>
                         </div>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label">Data Início</label>
-                        <input type="date" class="form-control" name="start_date" id="startDate" required>
+                    <!-- Destination -->
+                    <div class="md:col-span-3 relative group">
+                        <label
+                            class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Destino</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <span class="text-gray-400">🛬</span>
+                            </div>
+                            <input type="text" name="destination_cities" value="Miami"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-navy focus:border-brand-navy transition duration-200 outline-none text-gray-800 bg-white pl-10 autocomplete-location font-semibold"
+                                placeholder="Cidade ou Aeroporto" autocomplete="off" required>
+                            <div
+                                class="autocomplete-results absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-64 overflow-y-auto mt-1 divide-y divide-gray-100 hidden">
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label">Fonte de Dados</label>
-                        <select class="form-select" id="dataProvider" name="provider">
-                            <option value="Amadeus API">Amadeus</option>
-                            <option value="Google Flights">Foogle Fly (Google Flights)</option>
-                            <option value="Kayak" selected>Kakak (Kayak)</option>
+                    <!-- Dates -->
+                    <div class="md:col-span-2">
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Ida</label>
+                        <input type="date" name="start_date" id="startDate" required
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-navy focus:border-brand-navy transition duration-200 outline-none text-gray-800 bg-white font-medium text-gray-700">
+                    </div>
+
+                    <div class="md:col-span-2 hidden" id="returnDateDiv">
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Volta</label>
+                        <input type="date" name="return_date" id="returnDate"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-navy focus:border-brand-navy transition duration-200 outline-none text-gray-800 bg-white font-medium text-gray-700">
+                    </div>
+
+                    <!-- Button -->
+                    <div class="md:col-span-2 md:col-start-11">
+                        <button type="submit" id="optimizeBtn"
+                            class="bg-brand-red text-white font-bold py-4 px-8 rounded-lg shadow-lg hover:shadow-xl hover:bg-red-700 transition duration-300 transform hover:-translate-y-0.5 w-full uppercase tracking-wide text-sm h-full flex items-center justify-center">
+                            Buscar
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Advanced Options Toggle -->
+                <div class="mt-6 flex flex-wrap items-center gap-6 justify-between text-sm">
+                    <div class="flex items-center gap-6">
+                        <button type="button"
+                            class="text-brand-navy hover:text-blue-800 font-semibold flex items-center gap-1 focus:outline-none"
+                            onclick="document.getElementById('advancedOptions').classList.toggle('hidden')">
+                            ⚙️ Opções Avançadas
+                        </button>
+                    </div>
+
+                    <!-- Priority Slider (Simplified) -->
+                    <div class="flex items-center gap-3">
+                        <span class="text-gray-500 text-xs uppercase">Prioridade:</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold text-gray-600">Rapidez</span>
+                            <input type="range" id="prioritySlider" min="0" max="100" value="50"
+                                class="w-24 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand-navy">
+                            <span class="text-xs font-bold text-gray-600">Economia</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hidden Advanced Options -->
+                <div id="advancedOptions"
+                    class="hidden mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in-down">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Provedor de
+                            Voos</label>
+                        <select name="provider"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-navy focus:border-brand-navy transition duration-200 outline-none text-gray-800 bg-white py-2 text-sm">
+                            <option value="Kayak" selected>Kayak (Recomendado)</option>
+                            <option value="Google Flights">Google Flights</option>
+                            <option value="Amadeus API">Amadeus API</option>
                         </select>
-                        <div class="form-check form-switch mt-3">
-                            <input class="form-check-input" type="checkbox" id="searchHotels" name="search_hotels">
-                            <label class="form-check-label" for="searchHotels">🏨 Buscar Hotéis (Beta)</label>
-                        </div>
                     </div>
-
-                    <div class="mb-3">
-                        <div class="form-check form-switch mb-2">
-                            <input class="form-check-input" type="checkbox" id="isRoundTrip" name="is_round_trip">
-                            <label class="form-check-label" for="isRoundTrip">Ida e Volta</label>
-                        </div>
-                        <div id="returnDateDiv" class="d-none">
-                            <label class="form-label">Data de Retorno</label>
-                            <input type="date" class="form-control" name="return_date" id="returnDate">
-                        </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Cidades
+                            Obrigatórias</label>
+                        <input type="text" name="mandatory_cities"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-navy focus:border-brand-navy transition duration-200 outline-none text-gray-800 bg-white py-2 text-sm"
+                            placeholder="Ex: JFK (Opcional)">
                     </div>
-
-                    <div class="mb-3 position-relative">
-                        <label class="form-label">Origens (sep. vírgula)</label>
-                        <input type="text" class="form-control autocomplete-location" name="origin_cities"
-                            value="São Paulo" required autocomplete="off">
-                        <div class="autocomplete-results shadow-sm d-none"></div>
+                    <div class="flex items-center pt-6">
+                        <label class="flex items-center cursor-pointer gap-2">
+                            <input type="checkbox" name="search_hotels"
+                                class="w-4 h-4 text-brand-navy rounded focus:ring-brand-navy">
+                            <span class="text-gray-700 font-medium text-sm">Incluir busca de Hotéis</span>
+                        </label>
                     </div>
-
-                    <div class="mb-3 position-relative">
-                        <label class="form-label">Destinos (sep. vírgula)</label>
-                        <input type="text" class="form-control autocomplete-location" name="destination_cities"
-                            value="Miami" required autocomplete="off">
-                        <div class="autocomplete-results shadow-sm d-none"></div>
-                    </div>
-
-                    <div class="mb-3 position-relative">
-                        <label class="form-label">Cidades Obrigatórias</label>
-                        <input type="text" class="form-control autocomplete-location" name="mandatory_cities"
-                            placeholder="Opcional" autocomplete="off">
-                        <div class="autocomplete-results shadow-sm d-none"></div>
-                    </div>
-
-                    <hr>
-                    <label class="form-label fw-bold">Prioridade</label>
-                    <div class="mb-3">
-                        <label class="form-label small">Custo vs Tempo</label>
-                        <input type="range" class="form-range" id="weightRange" min="0" max="100" value="70">
-                        <div class="d-flex justify-content-between small text-muted">
-                            <span>Mais Rápido</span>
-                            <span>Mais Barato</span>
-                        </div>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary w-100" id="btnSubmit">
-                        🚀 Otimizar Viagem
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- Results Panel -->
-    <div class="col-md-8">
-        <!-- Initial State -->
-        <div id="welcomeState" class="text-center p-5 bg-white rounded shadow-sm">
-            <h2 class="text-primary">Bem-vindo, {{ user.full_name or user.email }}!</h2>
-            <p class="lead">Configure sua viagem ao lado para encontrar o melhor roteiro.</p>
-            <div class="mt-4">
-                <h5>Seus Últimos Roteiros</h5>
-                <div id="historyList" class="list-group list-group-flush text-start mt-3">
-                    <p class="text-muted text-center">Carregando histórico...</p>
                 </div>
-                <!-- Right column removed: using only search history as source of detail -->
-            </div>
+            </form>
         </div>
-
-        <!-- Loading State -->
-        <div id="loadingState" class="text-center p-5 d-none">
-            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
-            <p class="mt-3 lead">Analisando milhares de voos e conexões...</p>
-        </div>
-
-        <!-- Results Container (Injected via JS) -->
-        <div id="resultsContainer" class="d-none"></div>
-
-        <!-- Itinerary Detail Inline -->
-        <div id="detailState" class="d-none"></div>
     </div>
 </div>
 
-<!-- Itinerary Modal -->
-<div class="modal fade" id="itineraryModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Detalhes do Itinerário</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" id="itineraryModalBody">
-                <div class="text-center py-4">
-                    <div class="spinner-border text-primary" role="status"></div>
+<!-- Main Content Area -->
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+
+    <!-- Loading State -->
+    <div id="loadingSpinner" class="hidden text-center py-20">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-brand-navy border-t-transparent">
+        </div>
+        <h3 class="mt-4 text-xl font-serif font-bold text-brand-navy">Buscando as melhores ofertas...</h3>
+        <p class="text-gray-500">Estamos comparando preços em centenas de companhias aéreas.</p>
+    </div>
+
+    <!-- Results Container -->
+    <div id="resultsContainer" class="hidden space-y-8">
+        <!-- Results injected via JS -->
+    </div>
+
+    <!-- Detail View Container -->
+    <div id="detailState" class="hidden bg-white rounded-xl shadow-lg p-6">
+        <!-- Details injected via JS -->
+    </div>
+
+    <!-- Initial State / Promotions Mockup -->
+    <div id="welcomeState" class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <!-- Card 1 -->
+        <div
+            class="bg-white border border-gray-100 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 p-6 group cursor-pointer">
+            <div class="h-40 bg-gray-200 rounded-lg mb-4 overflow-hidden relative">
+                <img src="https://images.unsplash.com/photo-1502920514313-525860026161?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
+                    class="w-full h-full object-cover transition transform group-hover:scale-110 duration-500"
+                    alt="Paris">
+                <div class="absolute top-2 left-2 bg-brand-gold text-white text-xs font-bold px-2 py-1 rounded">Oferta
                 </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            <h3 class="font-serif font-bold text-xl text-gray-800 mb-1">Paris, França</h3>
+            <p class="text-sm text-gray-500 mb-3">Partindo de São Paulo</p>
+            <div class="flex justify-between items-center">
+                <span class="text-xs text-gray-400">Ida e volta</span>
+                <span class="text-brand-red font-bold text-lg">R$ 3.850<small
+                        class="text-xs text-gray-400">,00</small></span>
+            </div>
+        </div>
+
+        <!-- Card 2 -->
+        <div
+            class="bg-white border border-gray-100 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 p-6 group cursor-pointer">
+            <div class="h-40 bg-gray-200 rounded-lg mb-4 overflow-hidden relative">
+                <img src="https://images.unsplash.com/photo-1522083165195-3424ed129620?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
+                    class="w-full h-full object-cover transition transform group-hover:scale-110 duration-500"
+                    alt="New York">
+            </div>
+            <h3 class="font-serif font-bold text-xl text-gray-800 mb-1">Nova York, EUA</h3>
+            <p class="text-sm text-gray-500 mb-3">Partindo de Rio de Janeiro</p>
+            <div class="flex justify-between items-center">
+                <span class="text-xs text-gray-400">Ida e volta</span>
+                <span class="text-brand-red font-bold text-lg">R$ 2.990<small
+                        class="text-xs text-gray-400">,00</small></span>
+            </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div
+            class="bg-white border border-gray-100 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 p-6 group cursor-pointer">
+            <div class="h-40 bg-gray-200 rounded-lg mb-4 overflow-hidden relative">
+                <img src="https://images.unsplash.com/photo-1512453979798-5ea904ac6605?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
+                    class="w-full h-full object-cover transition transform group-hover:scale-110 duration-500"
+                    alt="Dubai">
+                <div class="absolute top-2 left-2 bg-brand-navy text-white text-xs font-bold px-2 py-1 rounded">Premium
+                </div>
+            </div>
+            <h3 class="font-serif font-bold text-xl text-gray-800 mb-1">Dubai, EAU</h3>
+            <p class="text-sm text-gray-500 mb-3">Partindo de São Paulo</p>
+            <div class="flex justify-between items-center">
+                <span class="text-xs text-gray-400">Ida e volta</span>
+                <span class="text-brand-red font-bold text-lg">R$ 5.420<small
+                        class="text-xs text-gray-400">,00</small></span>
             </div>
         </div>
     </div>
 </div>
+
 {% endblock %}
 
 {% block scripts %}
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 <script>
-    function getCookie(name) {
-        let value = "; " + document.cookie;
-        let parts = value.split("; " + name + "=");
-        if (parts.length == 2) return parts.pop().split(";").shift();
-    }
-
-    // Set default date
-    const today = new Date();
-    today.setDate(today.getDate() + 30);
-    document.getElementById('startDate').valueAsDate = today;
-
-    // Load History (search history) and saved itineraries separately to avoid duplication
-    async function loadHistory() {
-        const token = getCookie('access_token');
-        const list = document.getElementById('historyList');
-        list.innerHTML = '';
-
-        try {
-            // Fetch history and itineraries (to enrich with custo/tempo)
-            const [resHist, resItins] = await Promise.all([
-                fetch('/users/history', { headers: { 'Authorization': 'Bearer ' + token } }),
-                fetch('/api/itineraries', { headers: { 'Authorization': 'Bearer ' + token } })
-            ]);
-
-            if (resHist.status === 401) {
-                window.location.href = "/login";
-                return;
-            }
-
-            if (!resHist.ok) {
-                list.innerHTML = '<p class="text-center text-muted">Falha ao carregar histórico.</p>';
-                return;
-            }
-
-            const history = await resHist.json();
-            const itineraries = resItins.ok ? await resItins.json() : [];
-            const itinBySearchId = {};
-            itineraries.forEach(it => { if (it.search_id) itinBySearchId[it.search_id] = it; });
-
-            if (!history || history.length === 0) {
-                list.innerHTML = '<p class="text-center text-muted">Nenhuma busca recente.</p>';
-                return;
-            }
-
-            const fmtDuration = (min) => {
-                if (!min && min !== 0) return '-';
-                const h = Math.floor(min / 60);
-                const m = min % 60;
-                return `${h}h ${m}m`;
-            };
-
-            history.forEach(h => {
-                const it = itinBySearchId[h.id];
-                const totalCost = it && typeof it.total_cost === 'number' ? `R$ ${it.total_cost.toFixed(2)}` : '—';
-                const totalTime = it && typeof it.total_duration === 'number' ? fmtDuration(it.total_duration) : '—';
-
-                const item = document.createElement('a');
-                item.className = 'list-group-item list-group-item-action';
-                item.href = '#';
-                item.innerHTML = `
-                    <div class="d-flex w-100 justify-content-between align-items-center">
-                        <div>
-                            <h6 class="mb-1">${h.origin} ➝ ${h.destinations}</h6>
-                            <small class="text-muted">Partida: ${new Date(h.start_date).toLocaleDateString()}</small>
-                        </div>
-                        <div class="text-end">
-                            <div class="small"><span class="me-1">💰</span><strong>${totalCost}</strong></div>
-                            <div class="small text-muted"><span class="me-1">⏱️</span>${totalTime}</div>
-                        </div>
-                    </div>
-                `;
-                item.addEventListener('click', (ev) => { ev.preventDefault(); if (h.id) loadDetailInline(h.id); });
-                list.appendChild(item);
-            });
-        } catch (e) {
-            console.error(e);
-            list.innerHTML = '<p class="text-center text-muted">Erro ao carregar histórico.</p>';
-        }
-    }
-    loadHistory();
-
-    // Toggle Return Date
-    const chkRound = document.getElementById('isRoundTrip');
-    chkRound.addEventListener('change', () => {
-        const div = document.getElementById('returnDateDiv');
-        const input = document.getElementById('returnDate');
-        if (chkRound.checked) {
-            div.classList.remove('d-none');
-            input.required = true;
-        } else {
-            div.classList.add('d-none');
-            input.required = false;
-        }
-    });
-
-    // Form Submit
-    document.getElementById('searchForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-
-        // UI Transition
-        document.getElementById('welcomeState').classList.add('d-none');
-        document.getElementById('resultsContainer').classList.add('d-none');
-        document.getElementById('loadingState').classList.remove('d-none');
-        document.getElementById('btnSubmit').disabled = true;
-
-        const formData = new FormData(e.target);
-
-        // Prepare Request
-        const weightCost = document.getElementById('weightRange').value / 100;
-
-        const reqBody = {
-            origin_cities: formData.get('origin_cities').split(',').map(s => s.trim()).filter(s => s !== ""),
-            destination_cities: formData.get('destination_cities').split(',').map(s => s.trim()).filter(s => s !== ""),
-            mandatory_cities: formData.get('mandatory_cities') ? formData.get('mandatory_cities').split(',').map(s => s.trim()).filter(s => s !== "") : [],
-            pax_adults: parseInt(formData.get('pax_adults')),
-            pax_children: parseInt(formData.get('pax_children')),
-            start_date: formData.get('start_date') + "T00:00:00",
-            weight_cost: weightCost,
-            weight_time: 1 - weightCost,
-            is_round_trip: chkRound.checked,
-            provider: document.getElementById('dataProvider').value,
-            search_hotels: document.getElementById('searchHotels').checked
-        };
-
-        if (chkRound.checked && formData.get('return_date')) {
-            reqBody.return_date = formData.get('return_date') + "T00:00:00";
-        }
-
-        try {
-            // Validate Cities/Airports
-            const allCitiesToCheck = [...reqBody.origin_cities, ...reqBody.destination_cities, ...reqBody.mandatory_cities];
-            if (allCitiesToCheck.length > 0) {
-                const queryStr = allCitiesToCheck.map(c => `q=${encodeURIComponent(c)}`).join('&');
-                const valRes = await fetch(`/api/locations/validate?${queryStr}`);
-                const valData = await valRes.json();
-
-                if (!valData.valid) {
-                    alert(`⚠️ Aeroporto(s) não encontrado(s): ${valData.invalid.join(', ')}. \nPor favor, utilize as sugestões do dropdown.`);
-                    document.getElementById('loadingState').classList.add('d-none');
-                    document.getElementById('welcomeState').classList.remove('d-none');
-                    document.getElementById('btnSubmit').disabled = false;
-                    return;
-                }
-            }
-
-            const res = await fetch('/api/solve', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + getCookie('access_token')
-                },
-                body: JSON.stringify(reqBody)
-            });
-
-            if (res.ok) {
-                const result = await res.json();
-                renderResults(result);
-            } else if (res.status === 401) {
-                alert("Sessão expirada. Por favor, faça login novamente.");
-                window.location.href = "/login";
-            } else {
-                alert("Erro ao processar: " + res.statusText);
-            }
-        } catch (err) {
-            console.error(err);
-            alert("Erro de conexão.");
-        } finally {
-            document.getElementById('loadingState').classList.add('d-none');
-            document.getElementById('btnSubmit').disabled = false;
-        }
-    });
-
-    function renderResults(data) {
-        const container = document.getElementById('resultsContainer');
-        container.innerHTML = '';
-        container.classList.remove('d-none');
-
-        // Hide inline detail if visible
-        document.getElementById('detailState').classList.add('d-none');
-
-        if (data.status !== 'Optimal') {
-            let msg = '';
-            if (data.status === 'Infeasible') {
-                msg = `<div class="alert alert-warning">⚠️ <strong>Aviso:</strong> Não foi possível identificar uma rota válida com as restrições informadas. Tente flexibilizar as datas ou cidades.</div>`;
-            } else {
-                msg = `<div class="alert alert-warning">⚠️ <strong>Aviso:</strong> Otimização incompleta (Status: ${data.status}). Verifique os dados.</div>`;
-            }
-
-            if (data.warning_message) {
-                msg += `<div class="alert alert-info">💡 <strong>Sugestão:</strong> ${data.warning_message} <br>
-                <small class="text-muted">(Debug: Encontrou ${data.alternatives ? Object.keys(data.alternatives).length : 0} rotas e ${data.cars_found ? data.cars_found.length : 0} carros)</small></div>`;
-            }
-            container.innerHTML = msg;
-
-            // Allow partial rendering if we have alternatives, hotels, or cars
-            if (!data.itinerary || data.itinerary.length === 0) {
-                let hasFallback = false;
-                let fallbackHtml = '<div class="mt-4">';
-
-                // Alternatives (Flights)
-                if (data.alternatives && Object.keys(data.alternatives).length > 0) {
-                    hasFallback = true;
-                    fallbackHtml += `<h5>✈️ Opções de Voos Encontradas</h5><div id="alternativesFallback"></div>`;
-                    setTimeout(() => {
-                        renderAlternatives(data.alternatives, 'alternativesFallback');
-                    }, 150);
-                }
-
-                // Cars
-                if (data.cars_found && data.cars_found.length > 0) {
-                    hasFallback = true;
-                    fallbackHtml += `<h5 class="mt-4">🚗 Carros Encontrados</h5>
-                                      <div class="row row-cols-1 row-cols-md-3 g-3">`;
-                    data.cars_found.forEach(car => {
-                        fallbackHtml += `
-                            <div class="col">
-                                <div class="card h-100 border-success shadow-sm">
-                                    <div class="card-body">
-                                        <div class="d-flex justify-content-between align-items-start mb-2">
-                                            <h6 class="card-title text-success mb-0">
-                                                ${car.model}
-                                            </h6>
-                                            <span class="badge bg-success">R$ ${car.price_per_day.toFixed(2)}</span>
-                                        </div>
-                                        <p class="card-text small text-muted mb-3"><i class="bi bi-building"></i> ${car.company} | ${car.city}</p>
-                                        ${car.deep_link ? `<a href="${car.deep_link}" target="_blank" class="btn btn-sm btn-outline-success w-100">Alugar ↗</a>` : ''}
-                                    </div>
-                                </div>
-                            </div>`;
-                    });
-                    fallbackHtml += `</div>`;
-                }
-
-                if (hasFallback) {
-                    container.innerHTML += fallbackHtml + '</div>';
-
-                }
-
-                return;
-            }
-        }
-
-        // Check for Hybrid Route (Car segments)
-        let hasCar = false;
-        data.itinerary.forEach(leg => {
-            const flight = leg.flight || {};
-            if (flight.airline && (flight.airline.includes('Carro') || flight.airline.includes('Aluguel'))) {
-                hasCar = true;
-            }
-        });
-
-        // Hybrid Alert
-        let hybridAlert = '';
-        if (hasCar) {
-            hybridAlert = `<div class="alert alert-success mb-3">
-                <div class="d-flex align-items-center">
-                    <span class="fs-4 me-2">🚗</span>
-                    <div>
-                        <strong>Roteiro Híbrido Detectado!</strong><br>
-                        Como o destino não possui aeroporto próximo, incluímos um trecho terrestre recomendado.
-                    </div>
-                </div>
-            </div>`;
-        }
-
-        // Summary Card
-        const flightCost = (data.cost_breakdown && data.cost_breakdown.flight) || 0;
-        const carCost = (data.cost_breakdown && data.cost_breakdown.car) || 0;
-
-        const summary = `
-            ${hybridAlert}
-            <div class="card mb-4 border-success">
-                <div class="card-body">
-                    <div class="row text-center align-items-center">
-                        <div class="col">
-                            <h3 class="text-success">R$ ${data.total_cost.toFixed(2)}</h3>
-                            <small class="text-muted">Custo Total Estimado</small>
-                            ${hasCar ? '<div class="mt-2"><span class="badge bg-success">🚗 Rota Híbrida</span></div>' : ''}
-                        </div>
-                        <div class="col border-start border-end">
-                            <ul class="list-unstyled text-start d-inline-block small mb-0">
-                                <li>✈️ Aéreo: R$ ${flightCost.toFixed(2)}</li>
-                                <li>🚗 Carro: R$ ${carCost.toFixed(2)}</li>
-                            </ul>
-                        </div>
-                        <div class="col">
-                            <h3>${(data.total_duration / 60).toFixed(1)}h</h3>
-                            <small>Tempo Total</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        // Itinerary Table
-        let rows = '';
-
-        // Format Helper
-        const fmtTime = (isoStr) => {
-            if (!isoStr) return 'N/A';
-            const d = new Date(isoStr);
-            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) +
-                ` <small class="text-muted">${d.getDate()}/${d.getMonth() + 1}</small>`;
-        };
-        const mapSegments = [];
-
-        data.itinerary.forEach(leg => {
-            const flight = leg.flight || {};
-            const isCar = flight.airline && (flight.airline.includes('Carro') || flight.airline.includes('Aluguel'));
-
-            const rowClass = isCar ? 'table-success' : '';
-            const icon = isCar ? '🚗' : '✈️';
-            // Show Flight Number if valid
-            let flightNumDisplay = '';
-            if (flight.flight_number && flight.flight_number !== 'N/A') {
-                flightNumDisplay = `<br><small class="text-muted">${flight.flight_number}</small>`;
-            }
-            const airlineDisplay = isCar ? `<strong>${flight.airline}</strong>` : (flight.airline || 'N/A') + flightNumDisplay;
-
-            const depTime = fmtTime(flight.departure_time);
-            const arrTime = fmtTime(flight.arrival_time);
-
-            // Book link if available
-            let detailsDisplay = `<span class="badge bg-secondary">${flight.stops} paradas</span>`;
-
-            // Check deep_link field first, then fallback to details if it's a URL
-            let link = flight.deep_link;
-            if (!link && flight.details && flight.details.startsWith('http')) {
-                link = flight.details;
-            }
-
-            if (link) {
-                const btnLabel = isCar ? "Alugar ↗" : "Reservar ↗";
-                detailsDisplay += `<br><a href="${link}" target="_blank" class="btn btn-sm btn-primary mt-1 text-white">${btnLabel}</a>`;
-            }
-
-            rows += `
-                <tr class="${rowClass}" style="cursor: pointer;" onclick="showAlternatives('${leg.origin}-${leg.destination}')" title="Clique para ver alternativas">
-                    <td><strong>${leg.origin}</strong> <br> <small class="text-muted">➝ ${leg.destination}</small></td>
-                    <td>${icon} ${airlineDisplay}</td>
-                    <td>${depTime}</td>
-                    <td>${arrTime}</td>
-                    <td>${leg.duration} min</td>
-                    <td>R$ ${leg.price.toFixed(2)}</td>
-                    <td>${detailsDisplay}</td>
-                </tr>
-            `;
-
-            // Collect backend coords
-            if (leg.origin_coords && leg.dest_coords) {
-                mapSegments.push({
-                    from_name: leg.origin,
-                    to_name: leg.destination,
-                    from: leg.origin_coords,
-                    to: leg.dest_coords,
-                    airline: flight.airline || 'N/A',
-                    dep: depTime,
-                    arr: arrTime
-                });
-            }
-
-            // Collect backend coords (Duplicate removed)
-        });
-
-        const table = `
-            <!-- Tabs -->
-            <ul class="nav nav-tabs mb-3" id="resultTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="itinerary-tab" data-bs-toggle="tab" data-bs-target="#itinerary-content" type="button" role="tab">📅 Itinerário Final</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="alternatives-tab" data-bs-toggle="tab" data-bs-target="#alternatives-content" type="button" role="tab">🔍 Outras Opções Consultadas</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="hotels-tab" data-bs-toggle="tab" data-bs-target="#hotels-content" type="button" role="tab">🏨 Hotéis Encontrados</button>
-                </li>
-            </ul>
-
-            <div class="tab-content" id="resultTabContent">
-                <!-- Itinerary Tab -->
-                <div class="tab-pane fade show active" id="itinerary-content" role="tabpanel">
-                    <div class="card shadow-sm mb-4">
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle mb-0">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Rota</th>
-                                        <th>Cia Aérea</th>
-                                        <th>Partida</th>
-                                        <th>Chegada</th>
-                                        <th>Duração</th>
-                                        <th>Preço</th>
-                                        <th>Detalhes</th>
-                                    </tr>
-                                </thead>
-                                <tbody>${rows}</tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Alternatives Tab -->
-                <div class="tab-pane fade" id="alternatives-content" role="tabpanel">
-                     <div id="alternativesContainer">
-                        <p class="text-muted text-center p-3">Selecione uma rota para ver alternativas.</p>
-                     </div>
-                </div>
-
-                <!-- Hotels Tab -->
-                <div class="tab-pane fade" id="hotels-content" role="tabpanel">
-                     <div id="hotelsContainer">
-                        <p class="text-muted text-center p-3">Nenhum hotel buscado.</p>
-                     </div>
-                </div>
-            </div>
-        `;
-
-        // Map Container
-        const mapHtml = `
-            <div class="card shadow-sm">
-                <div class="card-header bg-white"><h5>🗺️ Visualização no Mapa</h5></div>
-                <div class="card-body p-0">
-                    <div id="map" style="height: 400px; width: 100%;"></div>
-                </div>
-            </div>
-        `;
-
-        container.innerHTML = summary + table + mapHtml;
-
-        // Render Alternatives
-        renderAlternatives(data.alternatives, 'alternativesContainer');
-
-        // Render Hotels
-        renderHotels(data.hotels_found, 'hotelsContainer');
-
-        // Init Map
-        initMap(mapSegments, 'map');
-    }
-
-    // Show itinerary detail in modal
-    async function showItineraryModal(id) {
-        const modalBody = document.getElementById('itineraryModalBody');
-        modalBody.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>';
-        const modalEl = document.getElementById('itineraryModal');
-        const bsModal = new bootstrap.Modal(modalEl);
-        bsModal.show();
-
-        try {
-            const res = await fetch(`/users/history/${id}`, {
-                headers: { 'Authorization': 'Bearer ' + getCookie('access_token') }
-            });
-            if (!res.ok) {
-                modalBody.innerHTML = `<div class="alert alert-danger">Falha ao carregar detalhamento: ${res.status} ${res.statusText}</div>`;
-                return;
-            }
-            const data = await res.json();
-
-            let html = `
-                <div class="card mb-3">
-                  <div class="card-body">
-                    <h5 class="card-title">Resumo</h5>
-                    <p><strong>Custo total:</strong> R$ ${data.total_cost.toFixed(2)}</p>
-                    <p><strong>Tempo total:</strong> ${(data.total_duration / 60).toFixed(1)}h</p>
-                  </div>
-                </div>
-                <div class="card"><div class="card-body"><h5>Trechos</h5><div class="table-responsive"><table class="table"><thead><tr><th>Origem</th><th>Destino</th><th>Cia</th><th>Partida</th><th>Chegada</th><th>Preço</th></tr></thead><tbody>`;
-
-            data.itinerary.forEach(leg => {
-                const f = leg.flight || {};
-                const dep = f.departure_time ? new Date(f.departure_time).toLocaleString() : '-';
-                const arr = f.arrival_time ? new Date(f.arrival_time).toLocaleString() : '-';
-                html += `<tr>
-                    <td>${leg.origin}</td>
-                    <td>${leg.destination}</td>
-                    <td>${f.airline || 'N/A'}</td>
-                    <td>${dep}</td>
-                    <td>${arr}</td>
-                    <td>R$ ${leg.price.toFixed(2)}</td>
-                  </tr>`;
-            });
-
-            html += '</tbody></table></div></div></div>';
-            modalBody.innerHTML = html;
-        } catch (e) {
-            console.error(e);
-            modalBody.innerHTML = `<div class="alert alert-danger">Erro ao carregar detalhamento.</div>`;
-        }
-    }
-
-    function renderHotels(hotels, containerId = 'hotelsContainer') {
-        const container = document.getElementById(containerId);
-        if (!container) return;
-        if (!hotels || hotels.length === 0) {
-            container.innerHTML = '<p class="text-muted text-center p-3">Nenhum hotel encontrado.</p>';
-            return;
-        }
-
-        let html = '<div class="row row-cols-1 row-cols-md-2 g-4">';
-        hotels.forEach(h => {
-            html += `
-                <div class="col">
-                    <div class="card h-100 shadow-sm border-0">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <h5 class="card-title text-primary">${h.name}</h5>
-                                <span class="badge bg-success ms-2">⭐ ${h.rating}</span>
-                            </div>
-                            <h6 class="card-subtitle mb-2 text-muted">📍 ${h.city}</h6>
-                            <hr>
-                            <p class="card-text fs-4 fw-bold">R$ ${h.price_per_night.toFixed(2)} <span class="fs-6 text-muted fw-normal">/ noite</span></p>
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-        html += '</div>';
-        container.innerHTML = html;
-    }
-
-    // Map Logic (Leaflet)
-    function initMap(segments, elementId = 'map') {
-        if (typeof L === 'undefined') return;
-        const container = document.getElementById(elementId);
-        if (!container) return;
-        if (!segments || segments.length === 0) {
-            container.innerHTML = '<div class="text-center p-5 text-muted">Sem dados de mapa disponíveis</div>';
-            return;
-        }
-
-        // Reset Map if exists
-        window.currentMaps = window.currentMaps || {};
-        if (window.currentMaps[elementId]) {
-            window.currentMaps[elementId].remove();
-            window.currentMaps[elementId] = null;
-        }
-
-        const map = L.map(elementId);
-        window.currentMaps[elementId] = map;
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap'
-        }).addTo(map);
-
-        const allPoints = [];
-
-        segments.forEach(seg => {
-            // Markers
-            L.marker(seg.from).addTo(map).bindPopup(`<b>${seg.from_name}</b>`);
-            L.marker(seg.to).addTo(map).bindPopup(`<b>${seg.to_name}</b>`);
-
-            // Path
-            const latlngs = [seg.from, seg.to];
-
-            // Check if it's a car segment
-            const isCar = seg.airline && (seg.airline.includes("Carro") || seg.airline.includes("Aluguel"));
-
-            const polyOptions = {
-                color: isCar ? '#28a745' : '#dc3545',
-                weight: 4,
-                opacity: 0.7,
-                dashArray: isCar ? '10, 10' : null
-            };
-
-            const poly = L.polyline(latlngs, polyOptions).addTo(map);
-
-            // Detailed Popup
-            let content = `<b>${seg.from_name} ➝ ${seg.to_name}</b><br>${seg.airline}`;
-            if (seg.dep && seg.arr) {
-                content += `<hr class="my-1">🛫 Partida: ${seg.dep}<br>🛬 Chegada: ${seg.arr}`;
-            }
-            poly.bindPopup(content);
-
-            allPoints.push(seg.from);
-            allPoints.push(seg.to);
-        });
-
-        if (allPoints.length > 0) {
-            map.fitBounds(allPoints, { padding: [50, 50] });
-        }
-    }
-
-    // Inline itinerary detail renderer (reuse itinerary_detail layout inside dashboard)
-    async function loadDetailInline(searchId) {
-        const detail = document.getElementById('detailState');
-        const welcome = document.getElementById('welcomeState');
-        const results = document.getElementById('resultsContainer');
-
-        welcome.classList.add('d-none');
-        results.classList.add('d-none');
-        detail.classList.remove('d-none');
-        detail.innerHTML = `<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Carregando detalhes...</p></div>`;
-
-        try {
-            const res = await fetch(`/users/history/${searchId}`, {
-                headers: { 'Authorization': 'Bearer ' + getCookie('access_token') }
-            });
-            if (!res.ok) {
-                detail.innerHTML = `<div class="alert alert-danger">Falha ao carregar detalhamento: ${res.status} ${res.statusText}</div>`;
-                return;
-            }
-            const data = await res.json();
-            renderDetailView(detail, data);
-        } catch (err) {
-            console.error(err);
-            detail.innerHTML = `<div class="alert alert-danger">Erro ao carregar detalhamento.</div>`;
-        }
-    }
-
-    function renderDetailView(container, data) {
-        if (!data || !data.itinerary) {
-            container.innerHTML = '<p class="text-muted">Nenhum detalhe disponível.</p>';
-            return;
-        }
-
-        let hasCar = false;
-        data.itinerary.forEach(leg => {
-            const flight = leg.flight || {};
-            if (flight.airline && (flight.airline.includes('Carro') || flight.airline.includes('Aluguel'))) {
-                hasCar = true;
-            }
-        });
-
-        const flightCost = (data.cost_breakdown && data.cost_breakdown.flight) || 0;
-        const carCost = (data.cost_breakdown && data.cost_breakdown.car) || 0;
-
-        const hybridAlert = hasCar ? `<div class="alert alert-success mb-3">
-            <div class="d-flex align-items-center">
-                <span class="fs-4 me-2">🚗</span>
-                <div>
-                    <strong>Roteiro Híbrido Detectado!</strong><br>
-                    Como o destino não possui aeroporto próximo, incluímos um trecho terrestre recomendado.
-                </div>
-            </div>
-        </div>` : '';
-
-        container.innerHTML = `
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <button class="btn btn-link px-0" id="btnBackToList">← Voltar para a lista</button>
-                <span class="text-muted small">Itinerário salvo</span>
-            </div>
-            ${hybridAlert}
-            <div class="card mb-4 border-success shadow-sm">
-                <div class="card-body">
-                    <div class="row text-center align-items-center">
-                        <div class="col-md-4">
-                            <h3 class="text-success">R$ ${data.total_cost.toFixed(2)}</h3>
-                            <small class="text-muted">Custo Total Estimado</small>
-                            <div class="mt-2">
-                                <small class="d-block">✈️ Aéreo: R$ ${flightCost.toFixed(2)}</small>
-                                <small class="d-block">🚗 Carro: R$ ${carCost.toFixed(2)}</small>
-                            </div>
-                        </div>
-                        <div class="col-md-4 border-start border-end">
-                            <h3>${(data.total_duration / 60).toFixed(1)}h</h3>
-                            <small class="text-muted">Tempo Total</small>
-                        </div>
-                        <div class="col-md-4">
-                            ${hasCar ? '<span class="badge bg-success fs-6">🚗 Rota Híbrida</span>' : '<span class="badge bg-primary fs-6">✈️ Rota Aérea</span>'}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <ul class="nav nav-tabs mb-3" id="detailTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="itinerary-tab" data-bs-toggle="tab" data-bs-target="#itinerary-content-detail" type="button" role="tab">📅 Itinerário Final</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="alternatives-tab" data-bs-toggle="tab" data-bs-target="#alternatives-content-detail" type="button" role="tab">🔍 Outras Opções Consultadas</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="hotels-tab" data-bs-toggle="tab" data-bs-target="#hotels-content-detail" type="button" role="tab">🏨 Hotéis Encontrados</button>
-                </li>
-            </ul>
-
-            <div class="tab-content" id="detailTabContent">
-                <div class="tab-pane fade show active" id="itinerary-content-detail" role="tabpanel">
-                    <div class="card shadow-sm mb-4">
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle mb-0">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Rota</th>
-                                        <th>Cia Aérea</th>
-                                        <th>Partida</th>
-                                        <th>Chegada</th>
-                                        <th>Duração</th>
-                                        <th>Preço</th>
-                                        <th>Detalhes</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="detailItineraryBody"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                <div class="tab-pane fade" id="alternatives-content-detail" role="tabpanel">
-                    <div id="detailAlternativesContainer">
-                        <p class="text-muted text-center p-3">Nenhuma alternativa disponível.</p>
-                    </div>
-                </div>
-                <div class="tab-pane fade" id="hotels-content-detail" role="tabpanel">
-                    <div id="detailHotelsContainer">
-                        <p class="text-muted text-center p-3">Nenhum hotel disponível.</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card shadow-sm mt-4">
-                <div class="card-header bg-white"><h5 class="mb-0">🗺️ Visualização no Mapa</h5></div>
-                <div class="card-body p-0">
-                    <div id="detailMap" style="height: 450px; width: 100%;"></div>
-                </div>
-            </div>
-        `;
-
-        // Back button handler
-        const backBtn = document.getElementById('btnBackToList');
-        backBtn.addEventListener('click', () => {
-            container.classList.add('d-none');
-            document.getElementById('welcomeState').classList.remove('d-none');
-        });
-
-        // Fill itinerary table and map
-        const tbody = document.getElementById('detailItineraryBody');
-        const fmtTime = (isoStr) => {
-            if (!isoStr) return 'N/A';
-            const d = new Date(isoStr);
-            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ` <small class="text-muted">${d.getDate()}/${d.getMonth() + 1}</small>`;
-        };
-
-        const mapSegments = [];
-        data.itinerary.forEach(leg => {
-            const flight = leg.flight || {};
-            const isCar = flight.airline && (flight.airline.includes('Carro') || flight.airline.includes('Aluguel'));
-            const rowClass = isCar ? 'table-success' : '';
-            const icon = isCar ? '🚗' : '✈️';
-
-            let flightNumDisplay = '';
-            if (flight.flight_number && flight.flight_number !== 'N/A') {
-                flightNumDisplay = `<br><small class="text-muted">${flight.flight_number}</small>`;
-            }
-            const airlineDisplay = isCar ? `<strong>${flight.airline}</strong>` : (flight.airline || 'N/A') + flightNumDisplay;
-
-            const depTime = fmtTime(flight.departure_time);
-            const arrTime = fmtTime(flight.arrival_time);
-
-            const row = document.createElement('tr');
-            row.className = rowClass;
-            row.innerHTML = `
-                <td><strong>${leg.origin}</strong><br><small class="text-muted">➝ ${leg.destination}</small></td>
-                <td>${icon} ${airlineDisplay}</td>
-                <td>${depTime}</td>
-                <td>${arrTime}</td>
-                <td>${leg.duration} min</td>
-                <td>R$ ${leg.price.toFixed(2)}</td>
-                <td><span class="badge bg-secondary">${flight.stops || 0} paradas</span></td>
-            `;
-            tbody.appendChild(row);
-
-            if (leg.origin_coords && leg.dest_coords) {
-                mapSegments.push({
-                    from_name: leg.origin,
-                    to_name: leg.destination,
-                    from: leg.origin_coords,
-                    to: leg.dest_coords,
-                    airline: flight.airline || 'N/A',
-                    dep: depTime,
-                    arr: arrTime
-                });
-            }
-        });
-
-        renderAlternatives(data.alternatives, 'detailAlternativesContainer');
-        renderHotels(data.hotels_found, 'detailHotelsContainer');
-        initMap(mapSegments, 'detailMap');
-    }
-
-    // Capture Alternatives Data
-    let globalAlternatives = {};
-
-    function renderAlternatives(alternatives, containerId = 'alternativesContainer') {
-        globalAlternatives = alternatives || {};
-        const container = document.getElementById(containerId);
-        if (!container) return;
-        container.innerHTML = '';
-
-        if (Object.keys(globalAlternatives).length === 0) {
-            container.innerHTML = '<p class="text-muted text-center p-3">Nenhuma alternativa encontrada.</p>';
-            return;
-        }
-
-        const accordionId = containerId + '-accordion';
-        let html = `<div class="accordion" id="${accordionId}">`;
-
-        Object.keys(globalAlternatives).forEach((key, index) => {
-            const flights = globalAlternatives[key];
-            const collapseId = `${accordionId}-collapse-${index}`;
-            const headingId = `${accordionId}-heading-${index}`;
-
-            const [origin, dest] = key.split('-');
-
-            html += `
-                <div class="accordion-item">
-                    <h2 class="accordion-header" id="${headingId}">
-                        <button class="accordion-button ${index === 0 ? '' : 'collapsed'}" type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}" aria-expanded="${index === 0}" aria-controls="${collapseId}">
-                            ✈️ Opções: ${origin} ➝ ${dest} (${flights.length})
-                        </button>
-                    </h2>
-                    <div id="${collapseId}" class="accordion-collapse collapse ${index === 0 ? 'show' : ''}" aria-labelledby="${headingId}" data-bs-parent="#${accordionId}">
-                        <div class="accordion-body p-0">
-                            <div class="table-responsive">
-                                <table class="table table-striped table-hover mb-0">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th>Cia Aérea</th>
-                                            <th>Voo</th>
-                                            <th>Partida</th>
-                                            <th>Chegada</th>
-                                            <th>Duração</th>
-                                            <th>Preço</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-            `;
-
-            flights.forEach(f => {
-                const dep = new Date(f.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                const arr = new Date(f.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                html += `
-                    <tr>
-                        <td>${f.airline}</td>
-                        <td>${f.flight_number || '-'}</td>
-                        <td>${dep}</td>
-                        <td>${arr}</td>
-                        <td>${f.duration_minutes} min</td>
-                        <td class="fw-bold">R$ ${f.price.toFixed(2)}</td>
-                    </tr>
-                 `;
-            });
-
-            html += `
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-
-        html += '</div>';
-        container.innerHTML = html;
-    }
-
-    // Deprecated click handler, but nice to keep if we want to auto-open specific accordion
-    window.showAlternatives = function (key) {
-        // Switch tab
-        const tabTrigger = new bootstrap.Tab(document.querySelector('#alternatives-tab'));
-        tabTrigger.show();
-
-        // Find accordion item matching key?
-        // Key is "Origin-Dest". Logic above creates keys in undefined order, but we can match text content or ID if we made it predictable.
-        // For now, simply switching tab is enough since all are listed.
+    // --- Helper Functions ---
+    const getCookie = (name) => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
     };
 
-    // Advanced Location Autocomplete with Keyboard Support
+    // --- UI Logic ---
+
+    // Default Date -> Today
+    document.getElementById('startDate').value = new Date().toISOString().split('T')[0];
+
+    // Round Trip Toggle
+    document.getElementById('isRoundTrip').addEventListener('change', (e) => {
+        const returnDiv = document.getElementById('returnDateDiv');
+        // Toggle formatting classes if needed to keep layout standard
+        // For simplified Grid layout:
+        if (e.target.checked) {
+            returnDiv.classList.remove('hidden');
+        } else {
+            returnDiv.classList.add('hidden');
+        }
+    });
+
+    // --- Autocomplete ---
     document.querySelectorAll('.autocomplete-location').forEach(input => {
         const resultsDiv = input.parentElement.querySelector('.autocomplete-results');
         let selectedIndex = -1;
+
+        const updateSelection = (items) => {
+            items.forEach((item, idx) => {
+                if (idx === selectedIndex) {
+                    item.classList.add('selected');
+                    item.scrollIntoView({ block: 'nearest' });
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        };
 
         input.addEventListener('keydown', (e) => {
             const items = resultsDiv.querySelectorAll('.autocomplete-item');
@@ -1060,64 +308,344 @@
             } else if (e.key === 'Enter' && selectedIndex >= 0) {
                 items[selectedIndex].click();
                 e.preventDefault();
+            } else if (e.key === 'Escape') {
+                resultsDiv.style.display = 'none';
             }
         });
 
-        function updateSelection(items) {
-            items.forEach((item, idx) => {
-                item.classList.toggle('bg-light', idx === selectedIndex);
-                if (idx === selectedIndex) item.scrollIntoView({ block: 'nearest' });
-            });
-        }
-
         input.addEventListener('input', async (e) => {
-            const pieces = e.target.value.split(',');
-            const currentQuery = pieces.pop().trim();
+            const query = e.target.value.trim();
             selectedIndex = -1;
 
-            if (currentQuery.length < 2) {
-                resultsDiv.classList.add('d-none');
+            if (query.length < 2) {
+                resultsDiv.style.display = 'none';
                 return;
             }
 
             try {
-                const res = await fetch(`/api/locations/search?q=${encodeURIComponent(currentQuery)}`);
+                const res = await fetch(`/api/locations/search?q=${encodeURIComponent(query)}`, {
+                    headers: { 'Authorization': 'Bearer ' + getCookie('access_token') }
+                });
+
+                if (!res.ok) return;
                 const data = await res.json();
 
-                resultsDiv.innerHTML = '';
                 if (data.length === 0) {
-                    resultsDiv.innerHTML = '<div class="p-2 text-muted small">Nenhum aeroporto encontrado</div>';
-                    resultsDiv.classList.remove('d-none');
-                    return;
-                }
+                    resultsDiv.innerHTML = '<div class="px-4 py-3 text-gray-400 text-sm">Nenhum resultado</div>';
+                } else {
+                    resultsDiv.innerHTML = data.map(loc => `
+                        <div class="autocomplete-item px-4 py-3 cursor-pointer hover:bg-gray-50 transition" data-value="${loc.name}">
+                            <div class="font-bold text-gray-800">${loc.name}</div>
+                            <div class="text-xs text-gray-500">${loc.iata} • ${loc.country}</div>
+                        </div>
+                    `).join('');
 
-                resultsDiv.classList.remove('d-none');
-                data.forEach(loc => {
-                    const item = document.createElement('div');
-                    item.className = 'autocomplete-item';
-                    item.innerHTML = `
-                        <strong>${loc.city} (${loc.iata})</strong>
-                        <span class="small text-muted">${loc.name}, ${loc.country}</span>
-                    `;
-                    item.addEventListener('click', () => {
-                        pieces.push(loc.iata);
-                        // Add comma only if it's the first element or user typed a comma
-                        input.value = pieces.join(', ').trim() + ', ';
-                        resultsDiv.classList.add('d-none');
-                        input.focus();
+                    resultsDiv.querySelectorAll('.autocomplete-item').forEach(item => {
+                        item.addEventListener('click', () => {
+                            const val = item.dataset.value;
+                            // Handle multiple cities logic if needed, simple replacement for now as per airline standard
+                            input.value = val;
+                            resultsDiv.style.display = 'none';
+                        });
                     });
-                    resultsDiv.appendChild(item);
-                });
-            } catch (err) { console.error(err); }
+                }
+                resultsDiv.style.display = 'block';
+
+            } catch (err) {
+                console.error(err);
+            }
         });
 
+        // Click outside closes
         document.addEventListener('click', (e) => {
             if (!input.contains(e.target) && !resultsDiv.contains(e.target)) {
-                resultsDiv.classList.add('d-none');
+                resultsDiv.style.display = 'none';
             }
         });
     });
+
+    // --- Search Submission ---
+    document.getElementById('searchForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const welcome = document.getElementById('welcomeState');
+        const results = document.getElementById('resultsContainer');
+        const detail = document.getElementById('detailState');
+        const loader = document.getElementById('loadingSpinner');
+        const btn = document.getElementById('optimizeBtn');
+        const originalBtnText = btn.innerHTML;
+
+        welcome.classList.add('hidden');
+        results.classList.add('hidden');
+        detail.classList.add('hidden');
+        loader.classList.remove('hidden');
+
+        btn.disabled = true;
+        btn.innerHTML = 'Buscando...'; // Simple status
+
+        // Prepare Payload
+        const fd = new FormData(e.target);
+        const sliderVal = parseInt(document.getElementById('prioritySlider').value);
+
+        const payload = {
+            origin_cities: fd.get('origin_cities').split(',').map(s => s.trim()).filter(s => s),
+            destination_cities: fd.get('destination_cities').split(',').map(s => s.trim()).filter(s => s),
+            mandatory_cities: fd.get('mandatory_cities') ? fd.get('mandatory_cities').split(',').map(s => s.trim()) : [],
+            start_date: new Date(fd.get('start_date')).toISOString(),
+            provider: fd.get('provider'),
+            pax_adults: parseInt(fd.get('pax_adults')),
+            pax_children: parseInt(fd.get('pax_children')),
+            weight_cost: (100 - sliderVal) / 100,
+            weight_time: sliderVal / 100
+        };
+
+        if (fd.get('return_date')) {
+            payload.return_date = new Date(fd.get('return_date')).toISOString();
+        }
+
+        try {
+            const res = await fetch('/api/solve', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + getCookie('access_token')
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) throw new Error("API failed");
+            const data = await res.json();
+
+            renderResults(data);
+            results.classList.remove('hidden');
+
+        } catch (err) {
+            console.error(err);
+            alert("Erro ao buscar viagens. Tente novamente.");
+            welcome.classList.remove('hidden');
+        } finally {
+            loader.classList.add('hidden');
+            btn.disabled = false;
+            btn.innerHTML = originalBtnText;
+        }
+    });
+
+    // --- Rendering Logic (Re-implemented for new styling) ---
+    function renderResults(data) {
+        const container = document.getElementById('resultsContainer');
+        container.innerHTML = '';
+
+        // 1. Status / Header
+        if (data.status !== 'Optimal') {
+            container.innerHTML = `
+                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r shadow-sm">
+                    <div class="flex">
+                        <div class="flex-shrink-0"><span class="text-yellow-400 text-xl">⚠️</span></div>
+                        <div class="ml-3">
+                            <p class="text-sm text-yellow-700 font-bold">Aviso do Sistema</p>
+                            <p class="text-sm text-yellow-700 mt-1">Não encontramos o roteiro perfeito. Mostrando alternativas.</p>
+                             ${data.warning_message ? `<p class="text-xs text-yellow-600 mt-2">${data.warning_message}</p>` : ''}
+                        </div>
+                    </div>
+                </div>
+             `;
+        }
+
+        // 2. Summary Card
+        // Calculate breakdown
+        const flightCost = data.cost_breakdown?.flight || 0;
+        const carCost = data.cost_breakdown?.car || 0;
+
+        const summaryHtml = `
+            <div class="bg-white rounded-xl shadow border border-gray-100 p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+                <div>
+                    <h2 class="text-2xl font-serif font-bold text-brand-navy">Melhor Opção Encontrada</h2>
+                    <p class="text-gray-500 text-sm">Tempo Total: <strong class="text-gray-800">${(data.total_duration / 60).toFixed(1)}h</strong> • ${data.itinerary.length} Trechos</p>
+                </div>
+                <div class="text-right">
+                    <div class="text-3xl font-bold text-brand-red">R$ ${data.total_cost.toFixed(2)}</div>
+                     ${carCost > 0 ? `<p class="text-xs text-gray-400">Inclui Voo + Carro</p>` : ''}
+                </div>
+            </div>
+        `;
+        container.innerHTML += summaryHtml;
+
+        // 3. Itinerary List (Airline Cards Style)
+        let itineraryHtml = '<div class="space-y-4">';
+
+        data.itinerary.forEach((leg, idx) => {
+            const flight = leg.flight || {};
+            const isCar = flight.airline && (flight.airline.includes('Carro') || flight.airline.includes('Aluguel'));
+            const cardIcon = isCar ? '🚗' : '✈️';
+
+            // Times
+            const depTime = flight.departure_time ? new Date(flight.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+            const arrTime = flight.arrival_time ? new Date(flight.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+
+            itineraryHtml += `
+                <div class="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition p-5 flex flex-col md:flex-row items-center gap-6">
+                    <!-- Left: Carrier Info -->
+                    <div class="md:w-1/4 flex flex-col items-start border-r border-gray-100 pr-4">
+                         <div class="flex items-center gap-2 mb-1">
+                            <span class="text-2xl">${cardIcon}</span>
+                            <span class="font-bold text-gray-800">${flight.airline || 'Operador'}</span>
+                         </div>
+                         <span class="text-xs text-gray-500 uppercase tracking-wide">Trecho ${idx + 1}</span>
+                         ${!isCar && flight.flight_number ? `<span class="text-xs text-gray-400">Voo ${flight.flight_number}</span>` : ''}
+                    </div>
+                    
+                    <!-- Middle: Route & Times -->
+                    <div class="flex-1 flex items-center justify-between w-full md:w-auto px-2">
+                        <div class="text-center">
+                            <div class="text-2xl font-light text-gray-800">${depTime}</div>
+                            <div class="text-sm font-bold text-gray-600">${leg.origin}</div>
+                        </div>
+                        
+                        <div class="flex-1 px-4 flex flex-col items-center">
+                            <span class="text-xs text-gray-400 mb-1">${leg.duration} min</span>
+                            <div class="w-full h-px bg-gray-300 relative">
+                                <div class="absolute -top-1 right-0 w-2 h-2 rounded-full bg-gray-300"></div>
+                            </div>
+                            <span class="text-xs text-green-600 mt-1 font-medium">${isCar ? 'Terrestre' : 'Direto'}</span>
+                        </div>
+                        
+                        <div class="text-center">
+                            <div class="text-2xl font-light text-gray-800">${arrTime}</div>
+                            <div class="text-sm font-bold text-gray-600">${leg.destination}</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Right: Price & Action -->
+                    <div class="md:w-1/4 flex flex-col items-end border-l border-gray-100 pl-4">
+                        <span class="text-xl font-bold text-gray-800">R$ ${leg.price.toFixed(2)}</span>
+                        
+                        ${flight.deep_link ?
+                    `<a href="${flight.deep_link}" target="_blank" class="mt-2 bg-brand-navy text-white text-sm font-medium py-2 px-6 rounded-full hover:bg-blue-900 transition shadow">
+                                ${isCar ? 'Alugar' : 'Selecionar'}
+                             </a>`
+                    : '<button disabled class="mt-2 bg-gray-200 text-gray-400 text-sm font-medium py-2 px-6 rounded-full cursor-not-allowed">Indisponível</button>'
+                }
+                    </div>
+                </div>
+            `;
+        });
+        itineraryHtml += '</div>';
+
+        container.innerHTML += itineraryHtml;
+
+        // 4. Alternatives Fallback
+        if (data.alternatives && Object.keys(data.alternatives).length > 0) {
+            container.innerHTML += `
+                <div class="mt-8">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">Outras Opções de Voo</h3>
+                    <div id="resultsAlternatives"></div>
+                </div>
+            `;
+            // Call render helper
+            renderAlternatives(data.alternatives, 'resultsAlternatives');
+        }
+
+        // 5. Cars Fallback (if present separately)
+        if (data.cars_found && data.cars_found.length > 0 && !data.itinerary.length) {
+            container.innerHTML += `
+                <div class="mt-8">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">Carros Disponíveis</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        ${data.cars_found.slice(0, 6).map(car => `
+                             <div class="bg-white rounded border p-4">
+                                <h4 class="font-bold text-brand-navy">${car.model}</h4>
+                                <p class="text-sm text-gray-500">${car.company} - ${car.city}</p>
+                                <div class="mt-3 flex justify-between items-center">
+                                    <span class="font-bold text-gray-800">R$ ${car.price_per_day}</span>
+                                    <a href="${car.deep_link}" target="_blank" class="text-brand-red text-sm font-bold">Ver &rarr;</a>
+                                </div>
+                             </div>
+                        `).join('')}
+                    </div>
+                </div>
+              `;
+        }
+    }
+
+    // --- Helper Components & Logic ---
+
+    // Map Initialization
+    function initMap(segments, elementId = 'detailMap') {
+        const container = document.getElementById(elementId);
+        if (!container) return;
+
+        if (window.currentMap && window.currentMap.containerId === elementId) {
+            window.currentMap.remove();
+        }
+
+        const map = L.map(elementId);
+        window.currentMap = map;
+        window.currentMap.containerId = elementId;
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO'
+        }).addTo(map);
+
+        const bounds = [];
+        segments.forEach(seg => {
+            if (seg.from && seg.to) {
+                const line = [[seg.from.lat, seg.from.lon], [seg.to.lat, seg.to.lon]];
+                L.polyline(line, { color: '#1B0088', weight: 3, opacity: 0.7, dashArray: '10, 10' }).addTo(map);
+                L.circleMarker(line[0], { radius: 5, color: '#E8114B', fillOpacity: 1 }).addTo(map).bindPopup(`<b>${seg.from_name}</b>`);
+                L.circleMarker(line[1], { radius: 5, color: '#1B0088', fillOpacity: 1 }).addTo(map).bindPopup(`<b>${seg.to_name}</b>`);
+                bounds.push(line[0], line[1]);
+            }
+        });
+
+        if (bounds.length > 0) {
+            map.fitBounds(bounds, { padding: [50, 50] });
+        }
+    }
+
+    // Alternatives Renderer
+    function renderAlternatives(alternatives, containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        let html = '<div class="space-y-4">';
+        Object.keys(alternatives).forEach(key => {
+            const flights = alternatives[key];
+            const [org, dst] = key.split('-');
+
+            html += `
+                <div class="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                    <button class="w-full text-left px-4 py-3 border-b border-gray-200 font-bold text-gray-700 flex justify-between items-center hover:bg-gray-50 focus:outline-none" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                        <span>${org} ➝ ${dst}</span>
+                        <div class="flex items-center gap-2">
+                             <span class="text-xs bg-gray-100 border border-gray-300 px-2 py-1 rounded text-gray-500">${flights.length} Opções</span>
+                             <span class="text-xs">▼</span>
+                        </div>
+                    </button>
+                    <div class="hidden divide-y divide-gray-100 max-h-60 overflow-y-auto">
+             `;
+
+            flights.forEach(f => {
+                html += `
+                    <div class="px-4 py-3 flex justify-between items-center hover:bg-slate-50 transition">
+                        <div>
+                            <div class="font-bold text-sm text-brand-navy">${f.airline}</div>
+                            <div class="text-xs text-gray-500">R$ ${f.price.toFixed(2)}</div>
+                        </div>
+                        <a href="${f.deep_link || '#'}" target="_blank" class="text-xs font-bold text-brand-red uppercase tracking-wide hover:underline">Ver</a>
+                    </div>
+                 `;
+            });
+            html += `</div></div>`;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    // History / Detail Loader (Restored)
+    async function loadDetailInline(searchId) {
+        // ... (Logic to load history details if needed, currently placeholder)
+        console.log("Loading detail for", searchId);
+    }
+
 </script>
-<!-- Load Leaflet JS -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 {% endblock %}
