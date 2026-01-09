@@ -258,6 +258,14 @@ def solve_trip(
             db.commit()
             print(f"Saved {new_hotels_count} new hotel options to DB.")
 
+        # Prepare Alternatives Grouped by Leg (move before saving itinerary)
+        alternatives_map = {}
+        for f in flights:
+            if hasattr(f, 'origin'):
+                key = f"{f.origin}-{f.destination}"
+                if key not in alternatives_map:
+                    alternatives_map[key] = []
+                alternatives_map[key].append(f.dict() if hasattr(f, 'dict') else f)
 
         # Save Itinerary
         if result.status == "Optimal":
@@ -265,7 +273,10 @@ def solve_trip(
                 search_id=search_rec.id,
                 total_cost=result.total_cost,
                 total_duration=result.total_duration,
-                details_json=json.dumps([leg.dict() for leg in result.itinerary], default=str)
+                details_json=json.dumps([leg.dict() for leg in result.itinerary], default=str),
+                alternatives_json=json.dumps(alternatives_map, default=str) if alternatives_map else None,
+                cost_breakdown_json=json.dumps(result.cost_breakdown, default=str) if hasattr(result, 'cost_breakdown') and result.cost_breakdown else None,
+                hotels_json=json.dumps([h.dict() for h in result.hotels_found], default=str) if hasattr(result, 'hotels_found') and result.hotels_found else None
             )
             db.add(itinerary_rec)
             db.commit()
@@ -273,16 +284,16 @@ def solve_trip(
         print(f"DB Save Error: {e}")
         # Continue execution to return result
 
-    # Prepare Alternatives Grouped by Leg
-    alternatives_map = {}
+    # Update result with alternatives for immediate return
+    alternatives_map_for_result = {}
     for f in flights:
         if hasattr(f, 'origin'):
             key = f"{f.origin}-{f.destination}"
-            if key not in alternatives_map:
-                alternatives_map[key] = []
-            alternatives_map[key].append(f)
+            if key not in alternatives_map_for_result:
+                alternatives_map_for_result[key] = []
+            alternatives_map_for_result[key].append(f)
     
-    result.alternatives = alternatives_map
+    result.alternatives = alternatives_map_for_result
 
     return result
 

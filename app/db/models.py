@@ -36,6 +36,9 @@ class Itinerary(Base):
     total_cost = Column(Float)
     total_duration = Column(Integer) # Minutes
     details_json = Column(Text) # JSON string of the full result
+    alternatives_json = Column(Text, nullable=True) # JSON string of alternatives
+    cost_breakdown_json = Column(Text, nullable=True) # JSON string of cost breakdown
+    hotels_json = Column(Text, nullable=True) # JSON string of hotels found
     created_at = Column(DateTime, default=datetime.utcnow)
 
     search = relationship("SearchHistory", back_populates="itineraries")
