@@ -167,8 +167,24 @@ def solve_itinerary(
             outflow = lpSum([x[k, j] for j in range(n) if k != j])
             inflow = lpSum([x[i, k] for i in range(n) if i != k])
             prob += outflow - inflow == is_start[k] - is_end[k]
+
+        # 5. Mandatory Visits
+        # We must visit ALL destination cities and ALL mandatory cities
+        cities_to_visit = set(request.destination_cities + request.mandatory_cities)
         
-        # Miller-Tucker-Zemlin subtour elimination
+        for i, city in enumerate(all_cities):
+            if city in cities_to_visit:
+                # To be "visited", a city must have an inflow (or be the starting point)
+                # Inflow + is_start >= 1 ensures the city is part of the path
+                inflow = lpSum([x[j, i] for j in range(n) if i != j])
+                prob += inflow + is_start[i] >= 1
+                
+                # Also must have outflow (or be the end point)
+                outflow = lpSum([x[i, j] for j in range(n) if i != j])
+                prob += outflow + is_end[i] >= 1
+
+        # 6. Miller-Tucker-Zemlin subtour elimination
+        # This prevents isolated loops that are not connected to the start/end path
         for i in range(n):
             for j in range(n):
                 if i != j:

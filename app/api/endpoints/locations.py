@@ -24,3 +24,23 @@ async def search_locations(
         }
         for a in results
     ]
+
+@router.get("/validate")
+async def validate_locations(
+    q: List[str] = Query(..., description="List of location terms to validate"),
+    service: LocationService = Depends(get_location_service)
+):
+    """
+    Validates a list of location strings (IATAs or City names).
+    Returns a list of invalid entries.
+    """
+    invalid = []
+    # Deduplicate to avoid redundant checks
+    terms = list(set(t.strip() for t in q if t.strip()))
+    
+    for term in terms:
+        resolved = service.resolve_iata(term)
+        if resolved.upper() not in service.airports:
+            invalid.append(term)
+    
+    return {"valid": len(invalid) == 0, "invalid": invalid}

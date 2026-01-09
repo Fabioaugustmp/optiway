@@ -88,18 +88,13 @@ def solve_trip(
         secret=settings.AMADEUS_API_SECRET
     )
 
-    all_cities = list(set(request.origin_cities + request.destination_cities + request.mandatory_cities))
+    # Filter empty strings and duplicates
+    origin_cities = [c for c in request.origin_cities if c.strip()]
+    dest_cities = [c for c in request.destination_cities if c.strip()]
+    mandatory = [c for c in request.mandatory_cities if c.strip()]
     
-    # Expand graph with nearby airports for cities
-    expanded_set = set(all_cities)
-    for city in all_cities:
-        nearest = find_nearest_airport(city)
-        if nearest:
-            near_city, dist = nearest
-            if dist < 400 and near_city != city:
-                expanded_set.add(near_city)
-    
-    all_cities = list(expanded_set)
+    all_cities = list(set(origin_cities + dest_cities + mandatory))
+    flights = []
     flights = []
     
     cached_flights_set = set() # Track cached items

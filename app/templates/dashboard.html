@@ -280,9 +280,9 @@
         const weightCost = document.getElementById('weightRange').value / 100;
 
         const reqBody = {
-            origin_cities: formData.get('origin_cities').split(',').map(s => s.trim()),
-            destination_cities: formData.get('destination_cities').split(',').map(s => s.trim()),
-            mandatory_cities: formData.get('mandatory_cities') ? formData.get('mandatory_cities').split(',').map(s => s.trim()) : [],
+            origin_cities: formData.get('origin_cities').split(',').map(s => s.trim()).filter(s => s !== ""),
+            destination_cities: formData.get('destination_cities').split(',').map(s => s.trim()).filter(s => s !== ""),
+            mandatory_cities: formData.get('mandatory_cities') ? formData.get('mandatory_cities').split(',').map(s => s.trim()).filter(s => s !== "") : [],
             pax_adults: parseInt(formData.get('pax_adults')),
             pax_children: parseInt(formData.get('pax_children')),
             start_date: formData.get('start_date') + "T00:00:00",
@@ -300,6 +300,22 @@
         }
 
         try {
+            // Validate Cities/Airports
+            const allCitiesToCheck = [...reqBody.origin_cities, ...reqBody.destination_cities, ...reqBody.mandatory_cities];
+            if (allCitiesToCheck.length > 0) {
+                const queryStr = allCitiesToCheck.map(c => `q=${encodeURIComponent(c)}`).join('&');
+                const valRes = await fetch(`/api/locations/validate?${queryStr}`);
+                const valData = await valRes.json();
+
+                if (!valData.valid) {
+                    alert(`⚠️ Aeroporto(s) não encontrado(s): ${valData.invalid.join(', ')}. \nPor favor, utilize as sugestões do dropdown.`);
+                    document.getElementById('loadingState').classList.add('d-none');
+                    document.getElementById('welcomeState').classList.remove('d-none');
+                    document.getElementById('btnSubmit').disabled = false;
+                    return;
+                }
+            }
+
             const res = await fetch('/api/solve', {
                 method: 'POST',
                 headers: {
