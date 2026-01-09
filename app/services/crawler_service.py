@@ -31,58 +31,6 @@ class BaseCrawler(ABC):
     def fetch_car_rentals(self, cities: List[str], date: datetime = None) -> List[CarRental]:
         pass
 
-class MockCrawler(BaseCrawler):
-    def fetch_flights(self, origin: str, destinations: List[str], date: datetime, adults: int = 1, children: int = 0) -> List[Flight]:
-        flights = []
-        for dest in destinations:
-            if origin == dest:
-                continue
-
-            # Generate 3-5 flight options per route
-            for _ in range(random.randint(3, 5)):
-                price = random.uniform(200, 1500)
-                duration = random.randint(45, 300) # minutes
-                airline = random.choice(["Latam", "Gol", "Azul", "Voepass"])
-
-                # Randomize dep time
-                hour = random.randint(6, 22)
-                minute = random.choice([0, 15, 30, 45])
-                dep_time = date.replace(hour=hour, minute=minute)
-                arr_time = dep_time + timedelta(minutes=duration)
-
-                flights.append(Flight(
-                    origin=origin,
-                    destination=dest,
-                    price=round(price, 2),
-                    duration_minutes=duration,
-                    airline=airline,
-                    departure_time=dep_time,
-                    arrival_time=arr_time,
-                    stops=0,
-                    baggage="1 PC",
-                    details=f"{origin}->{dest}"
-                ))
-        return flights
-
-    def fetch_hotels(self, cities: List[str]) -> List[Hotel]:
-        hotels = []
-        for city in cities:
-            for i in range(random.randint(3, 6)):
-                name = f"Hotel {random.choice(['Plaza', 'Royal', 'Suites', 'Inn', 'Grand'])} {city}"
-                price = random.uniform(150, 800)
-                rating = round(random.uniform(3.0, 5.0), 1)
-                hotels.append(Hotel(city=city, name=name, price_per_night=round(price, 2), rating=rating))
-        return hotels
-
-    def fetch_car_rentals(self, cities: List[str], date: datetime = None) -> List[CarRental]:
-        cars = []
-        for city in cities:
-            for _ in range(random.randint(2, 4)):
-                company = random.choice(["Localiza", "Movida", "Unidas"])
-                model = random.choice(["Gol", "Onix", "Compass", "Renegade"])
-                price = random.uniform(80, 250)
-                cars.append(CarRental(city=city, company=company, price_per_day=round(price, 2), model=model))
-        return cars
 
 class AmadeusCrawler(BaseCrawler):
     def __init__(self, client_id: str, client_secret: str, production: bool = False):
@@ -368,10 +316,10 @@ class FlightCrawlerProxy(BaseCrawler):
             logger.error(f"Error calling FlightCrawler for cars: {e}")
             return []
 
-def get_crawler(provider: str = "Mock Data", key: str = None, secret: str = None) -> BaseCrawler:
+def get_crawler(provider: str = "Kayak", key: str = None, secret: str = None) -> BaseCrawler:
     if provider == "Amadeus API" and key and secret:
         return AmadeusCrawler(key, secret)
     elif provider in ["Kayak", "Google Flights"]:
         return FlightCrawlerProxy(provider)
-    # Default to Mock
-    return MockCrawler()
+    
+    raise ValueError(f"Provider '{provider}' not supported or not configured.")

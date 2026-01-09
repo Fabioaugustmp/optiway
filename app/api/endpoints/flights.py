@@ -80,7 +80,7 @@ def solve_trip(
 ):
     # ... (init crawler, graph expansion) ...
     # 1. Init Crawler
-    provider = request.provider or ("Mock Data" if not settings.AMADEUS_API_KEY else "Amadeus API")
+    provider = request.provider or ("Kayak" if not settings.AMADEUS_API_KEY else "Amadeus API")
 
     crawler = get_crawler(
         provider=provider,
