@@ -63,10 +63,10 @@
                     <div class="mb-3">
                         <label class="form-label">Fonte de Dados</label>
                         <select class="form-select" id="dataProvider" name="provider">
-                            <option value="Mock Data" selected>Mocks</option>
+                            <option value="Mock Data">Mocks</option>
                             <option value="Amadeus API">Amadeus</option>
                             <option value="Google Flights">Foogle Fly (Google Flights)</option>
-                            <option value="Kayak">Kakak (Kayak)</option>
+                            <option value="Kayak" selected>Kakak (Kayak)</option>
                         </select>
                         <div class="form-check form-switch mt-3">
                             <input class="form-check-input" type="checkbox" id="searchHotels" name="search_hotels">
@@ -198,6 +198,11 @@
                 fetch('/api/itineraries', { headers: { 'Authorization': 'Bearer ' + token } })
             ]);
 
+            if (resHist.status === 401) {
+                window.location.href = "/login";
+                return;
+            }
+
             if (!resHist.ok) {
                 list.innerHTML = '<p class="text-center text-muted">Falha ao carregar histórico.</p>';
                 return;
@@ -286,8 +291,6 @@
             pax_adults: parseInt(formData.get('pax_adults')),
             pax_children: parseInt(formData.get('pax_children')),
             start_date: formData.get('start_date') + "T00:00:00",
-            weight_cost: weightCost,
-            weight_time: 1 - weightCost,
             weight_cost: weightCost,
             weight_time: 1 - weightCost,
             is_round_trip: chkRound.checked,
@@ -833,6 +836,7 @@
                     `;
                     item.addEventListener('click', () => {
                         pieces.push(loc.iata);
+                        // Add comma only if it's the first element or user typed a comma
                         input.value = pieces.join(', ').trim() + ', ';
                         resultsDiv.classList.add('d-none');
                         input.focus();

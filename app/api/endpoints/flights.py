@@ -95,7 +95,6 @@ def solve_trip(
     
     all_cities = list(set(origin_cities + dest_cities + mandatory))
     flights = []
-    flights = []
     
     cached_flights_set = set() # Track cached items
 
