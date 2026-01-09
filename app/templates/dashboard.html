@@ -435,15 +435,18 @@
         const container = document.getElementById('resultsContainer');
         container.innerHTML = '';
 
-        // 1. Status / Header
+        // Debug log for QA
+        console.log("renderResults received:", data);
+
+        // 1. Status / Header - Show warning if not optimal
         if (data.status !== 'Optimal') {
             container.innerHTML = `
-                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r shadow-sm">
+                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r shadow-sm mb-6">
                     <div class="flex">
                         <div class="flex-shrink-0"><span class="text-yellow-400 text-xl">⚠️</span></div>
                         <div class="ml-3">
-                            <p class="text-sm text-yellow-700 font-bold">Aviso do Sistema</p>
-                            <p class="text-sm text-yellow-700 mt-1">Não encontramos o roteiro perfeito. Mostrando alternativas.</p>
+                            <p class="text-sm text-yellow-700 font-bold">Status: ${data.status}</p>
+                            <p class="text-sm text-yellow-700 mt-1">Não foi possível encontrar um roteiro perfeito com os critérios informados.</p>
                              ${data.warning_message ? `<p class="text-xs text-yellow-600 mt-2">${data.warning_message}</p>` : ''}
                         </div>
                     </div>
@@ -451,38 +454,47 @@
              `;
         }
 
-        // 2. Summary Card
-        // Calculate breakdown
-        const flightCost = data.cost_breakdown?.flight || 0;
-        const carCost = data.cost_breakdown?.car || 0;
-
-        const summaryHtml = `
-            <div class="bg-white rounded-xl shadow border border-gray-100 p-6 flex flex-col md:flex-row items-center justify-between gap-6">
-                <div>
-                    <h2 class="text-2xl font-serif font-bold text-brand-navy">Melhor Opção Encontrada</h2>
-                    <p class="text-gray-500 text-sm">Tempo Total: <strong class="text-gray-800">${(data.total_duration / 60).toFixed(1)}h</strong> • ${data.itinerary.length} Trechos</p>
+        // 2. If itinerary is empty, show a prominent "No Results" card and skip to alternatives
+        if (!data.itinerary || data.itinerary.length === 0) {
+            container.innerHTML += `
+                <div class="bg-white rounded-xl shadow border border-gray-100 p-8 text-center">
+                    <div class="text-5xl mb-4">🛫</div>
+                    <h2 class="text-2xl font-serif font-bold text-gray-500 mb-2">Nenhuma Rota Direta Encontrada</h2>
+                    <p class="text-gray-400 max-w-md mx-auto">Não encontramos voos ou rotas que atendam à sua pesquisa. Veja abaixo alternativas de voos ou sugestões de transporte terrestre.</p>
                 </div>
-                <div class="text-right">
-                    <div class="text-3xl font-bold text-brand-red">R$ ${data.total_cost.toFixed(2)}</div>
-                     ${carCost > 0 ? `<p class="text-xs text-gray-400">Inclui Voo + Carro</p>` : ''}
+            `;
+        } else {
+            // 2b. Summary Card - Only show if we HAVE an itinerary
+            const flightCost = data.cost_breakdown?.flight || 0;
+            const carCost = data.cost_breakdown?.car || 0;
+
+            const summaryHtml = `
+                <div class="bg-white rounded-xl shadow border border-gray-100 p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div>
+                        <h2 class="text-2xl font-serif font-bold text-brand-navy">Melhor Opção Encontrada</h2>
+                        <p class="text-gray-500 text-sm">Tempo Total: <strong class="text-gray-800">${(data.total_duration / 60).toFixed(1)}h</strong> • ${data.itinerary.length} Trechos</p>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-3xl font-bold text-brand-red">R$ ${data.total_cost.toFixed(2)}</div>
+                         ${carCost > 0 ? `<p class="text-xs text-gray-400">Inclui Voo + Carro</p>` : ''}
+                    </div>
                 </div>
-            </div>
-        `;
-        container.innerHTML += summaryHtml;
+            `;
+            container.innerHTML += summaryHtml;
 
-        // 3. Itinerary List (Airline Cards Style)
-        let itineraryHtml = '<div class="space-y-4">';
+            // 3. Itinerary List (Airline Cards Style)
+            let itineraryHtml = '<div class="space-y-4">';
 
-        data.itinerary.forEach((leg, idx) => {
-            const flight = leg.flight || {};
-            const isCar = flight.airline && (flight.airline.includes('Carro') || flight.airline.includes('Aluguel'));
-            const cardIcon = isCar ? '🚗' : '✈️';
+            data.itinerary.forEach((leg, idx) => {
+                const flight = leg.flight || {};
+                const isCar = flight.airline && (flight.airline.includes('Carro') || flight.airline.includes('Aluguel'));
+                const cardIcon = isCar ? '🚗' : '✈️';
 
-            // Times
-            const depTime = flight.departure_time ? new Date(flight.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
-            const arrTime = flight.arrival_time ? new Date(flight.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+                // Times
+                const depTime = flight.departure_time ? new Date(flight.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+                const arrTime = flight.arrival_time ? new Date(flight.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
 
-            itineraryHtml += `
+                itineraryHtml += `
                 <div class="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition p-5 flex flex-col md:flex-row items-center gap-6">
                     <!-- Left: Carrier Info -->
                     <div class="md:w-1/4 flex flex-col items-start border-r border-gray-100 pr-4">
@@ -520,103 +532,104 @@
                         <span class="text-xl font-bold text-gray-800">R$ ${leg.price.toFixed(2)}</span>
                         
                         ${flight.deep_link ?
-                    `<a href="${flight.deep_link}" target="_blank" class="mt-2 bg-brand-navy text-white text-sm font-medium py-2 px-6 rounded-full hover:bg-blue-900 transition shadow">
+                        `<a href="${flight.deep_link}" target="_blank" class="mt-2 bg-brand-navy text-white text-sm font-medium py-2 px-6 rounded-full hover:bg-blue-900 transition shadow">
                                 ${isCar ? 'Alugar' : 'Selecionar'}
                              </a>`
-                    : '<button disabled class="mt-2 bg-gray-200 text-gray-400 text-sm font-medium py-2 px-6 rounded-full cursor-not-allowed">Indisponível</button>'
-                }
+                        : '<button disabled class="mt-2 bg-gray-200 text-gray-400 text-sm font-medium py-2 px-6 rounded-full cursor-not-allowed">Indisponível</button>'
+                    }
                     </div>
                 </div>
             `;
-        });
-        itineraryHtml += '</div>';
+            });
+            itineraryHtml += '</div>';
 
-        container.innerHTML += itineraryHtml;
+            container.innerHTML += itineraryHtml;
+        }  // <-- Close the else block here
 
-        // 4. Alternatives Fallback
+        // 4. Alternatives Fallback - Show always (even if no itinerary)
         if (data.alternatives && Object.keys(data.alternatives).length > 0) {
             container.innerHTML += `
-                <div class="mt-8">
-                    <h3 class="text-lg font-bold text-gray-800 mb-4">Outras Opções de Voo</h3>
-                    <div id="resultsAlternatives"></div>
-                </div>
-            `;
+            <div class="mt-8">
+                <h3 class="text-lg font-bold text-gray-800 mb-4">Outras Opções de Voo</h3>
+                <div id="resultsAlternatives"></div>
+            </div>
+        `;
             // Call render helper
             renderAlternatives(data.alternatives, 'resultsAlternatives');
         }
 
         // 5. Cars Fallback (Show always if available)
         if (data.cars_found && data.cars_found.length > 0) {
-            const isCarBetter = data.itinerary.length === 0; // Logic: If no flight found, car is better.
+            const isCarBetter = !data.itinerary || data.itinerary.length === 0;
 
             let carHeaderHtml = '';
             if (isCarBetter) {
                 carHeaderHtml = `
-                    <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r shadow-sm mb-6">
-                        <div class="flex">
-                            <div class="flex-shrink-0"><span class="text-blue-500 text-xl">🚗</span></div>
-                            <div class="ml-3">
-                                <p class="text-lg text-blue-800 font-bold">Recomendação de Transporte</p>
-                                <p class="text-sm text-blue-700 mt-1">Para este trajeto, identificamos que a opção mais viável é o transporte terrestre (Carro Alugado), pois não foram encontrados voos diretos comerciais eficientes.</p>
-                            </div>
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r shadow-sm mb-6">
+                    <div class="flex">
+                        <div class="flex-shrink-0"><span class="text-blue-500 text-xl">🚗</span></div>
+                        <div class="ml-3">
+                            <p class="text-lg text-blue-800 font-bold">Recomendação de Transporte</p>
+                            <p class="text-sm text-blue-700 mt-1">Para este trajeto, identificamos que a opção mais viável é o transporte terrestre (Carro Alugado).</p>
                         </div>
                     </div>
-                    <h3 class="text-lg font-bold text-gray-800 mb-4">Opções de Veículos</h3>
-                `;
+                </div>
+                <h3 class="text-lg font-bold text-gray-800 mb-4">Opções de Veículos</h3>
+            `;
             } else {
                 carHeaderHtml = `<h3 class="text-lg font-bold text-gray-800 mb-4">Complemente sua viagem com um Carro</h3>`;
             }
 
             container.innerHTML += `
-                <div class="mt-8">
-                    ${carHeaderHtml}
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        ${data.cars_found.slice(0, 6).map(car => {
+            <div class="mt-8">
+                ${carHeaderHtml}
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    ${data.cars_found.slice(0, 6).map(car => {
                 const model = (car.model && car.model !== 'Unknown') ? car.model : 'Veículo Econômico';
                 const price = car.price_per_day > 0 ? `R$ ${car.price_per_day.toFixed(2)}` : 'Sob Consulta';
 
                 return `
-                             <div class="bg-white rounded border border-gray-200 p-4 shadow-sm hover:shadow-md transition">
-                                <div class="flex justify-between items-start mb-2">
-                                     <h4 class="font-bold text-brand-navy text-lg">${model}</h4>
-                                     <span class="bg-gray-100 text-gray-500 text-xs px-2 py-1 rounded">Diária</span>
+                         <div class="bg-white rounded border border-gray-200 p-4 shadow-sm hover:shadow-md transition">
+                            <div class="flex justify-between items-start mb-2">
+                                 <h4 class="font-bold text-brand-navy text-lg">${model}</h4>
+                                 <span class="bg-gray-100 text-gray-500 text-xs px-2 py-1 rounded">Diária</span>
+                            </div>
+                            <p class="text-sm text-gray-500 mb-4">Retirada em: <span class="font-semibold">${car.city}</span></p>
+                            <div class="flex justify-between items-end border-t border-gray-100 pt-3">
+                                <div>
+                                     <span class="block text-xs text-gray-400">A partir de</span>
+                                     <span class="font-bold text-gray-800 text-lg">${price}</span>
                                 </div>
-                                <p class="text-sm text-gray-500 mb-4">Retirada em: <span class="font-semibold">${car.city}</span></p>
-                                <div class="flex justify-between items-end border-t border-gray-100 pt-3">
-                                    <div>
-                                         <span class="block text-xs text-gray-400">A partir de</span>
-                                         <span class="font-bold text-gray-800 text-lg">${price}</span>
-                                    </div>
-                                    <a href="${car.deep_link || '#'}" target="_blank" class="bg-brand-navy text-white text-xs font-bold py-2 px-4 rounded hover:bg-blue-900 transition">RESERVAR</a>
-                                </div>
-                             </div>
-                        `}).join('')}
-                    </div>
+                                <a href="${car.deep_link || '#'}" target="_blank" class="bg-brand-navy text-white text-xs font-bold py-2 px-4 rounded hover:bg-blue-900 transition">RESERVAR</a>
+                            </div>
+                         </div>
+                    `}).join('')}
                 </div>
-              `;
+            </div>
+          `;
         }
 
-        // 6. Hotels Fallback (Restore functionality)
+        // 6. Hotels Fallback
         if (data.hotels_found && data.hotels_found.length > 0) {
             container.innerHTML += `
-                <div class="mt-8">
-                    <h3 class="text-lg font-bold text-gray-800 mb-4">Sugestões de Hospedagem</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        ${data.hotels_found.slice(0, 6).map(h => `
-                             <div class="bg-white rounded border border-gray-200 p-4 shadow-sm hover:shadow-md transition">
-                                <h4 class="font-bold text-brand-navy truncate" title="${h.name}">${h.name}</h4>
-                                <p class="text-sm text-gray-500">${h.stars || '3'} Estrelas</p>
-                                <div class="mt-3 flex justify-between items-center">
-                                    <span class="font-bold text-gray-800">R$ ${h.price_total}</span>
-                                    <span class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Recomendado</span>
-                                </div>
-                             </div>
-                        `).join('')}
-                    </div>
+            <div class="mt-8">
+                <h3 class="text-lg font-bold text-gray-800 mb-4">Sugestões de Hospedagem</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    ${data.hotels_found.slice(0, 6).map(h => `
+                         <div class="bg-white rounded border border-gray-200 p-4 shadow-sm hover:shadow-md transition">
+                            <h4 class="font-bold text-brand-navy truncate" title="${h.name}">${h.name}</h4>
+                            <p class="text-sm text-gray-500">${h.stars || '3'} Estrelas</p>
+                            <div class="mt-3 flex justify-between items-center">
+                                <span class="font-bold text-gray-800">R$ ${h.price_per_night || h.price_total}</span>
+                                <span class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Recomendado</span>
+                            </div>
+                         </div>
+                    `).join('')}
                 </div>
-             `;
+            </div>
+         `;
         }
-    }
+    } // <-- Close renderResults function
 
     // --- Helper Components & Logic ---
 
@@ -664,27 +677,28 @@
             const [org, dst] = key.split('-');
 
             html += `
-                <div class="border border-gray-200 rounded-lg overflow-hidden bg-white">
-                    <button class="w-full text-left px-4 py-3 border-b border-gray-200 font-bold text-gray-700 flex justify-between items-center hover:bg-gray-50 focus:outline-none" onclick="this.nextElementSibling.classList.toggle('hidden')">
-                        <span>${org} ➝ ${dst}</span>
-                        <div class="flex items-center gap-2">
-                             <span class="text-xs bg-gray-100 border border-gray-300 px-2 py-1 rounded text-gray-500">${flights.length} Opções</span>
-                             <span class="text-xs">▼</span>
-                        </div>
-                    </button>
-                    <div class="hidden divide-y divide-gray-100 max-h-60 overflow-y-auto">
-             `;
+            <div class="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                <button class="w-full text-left px-4 py-3 border-b border-gray-200 font-bold text-gray-700 flex justify-between items-center hover:bg-gray-50 focus:outline-none" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                    <span>${org} ➝ ${dst}</span>
+                    <div class="flex items-center gap-2">
+                         <span class="text-xs bg-gray-100 border border-gray-300 px-2 py-1 rounded text-gray-500">${flights.length} Opções</span>
+                         <span class="text-xs">▼</span>
+                    </div>
+                </button>
+                <div class="hidden divide-y divide-gray-100 max-h-60 overflow-y-auto">
+         `;
 
             flights.forEach(f => {
+                const price = (typeof f.price === 'number') ? f.price.toFixed(2) : f.price;
                 html += `
-                    <div class="px-4 py-3 flex justify-between items-center hover:bg-slate-50 transition">
-                        <div>
-                            <div class="font-bold text-sm text-brand-navy">${f.airline}</div>
-                            <div class="text-xs text-gray-500">R$ ${f.price.toFixed(2)}</div>
-                        </div>
-                        <a href="${f.deep_link || '#'}" target="_blank" class="text-xs font-bold text-brand-red uppercase tracking-wide hover:underline">Ver</a>
+                <div class="px-4 py-3 flex justify-between items-center hover:bg-slate-50 transition">
+                    <div>
+                        <div class="font-bold text-sm text-brand-navy">${f.airline}</div>
+                        <div class="text-xs text-gray-500">R$ ${price}</div>
                     </div>
-                 `;
+                    <a href="${f.deep_link || '#'}" target="_blank" class="text-xs font-bold text-brand-red uppercase tracking-wide hover:underline">Ver</a>
+                </div>
+             `;
             });
             html += `</div></div>`;
         });
@@ -692,9 +706,8 @@
         container.innerHTML = html;
     }
 
-    // History / Detail Loader (Restored)
+    // History / Detail Loader (Placeholder)
     async function loadDetailInline(searchId) {
-        // ... (Logic to load history details if needed, currently placeholder)
         console.log("Loading detail for", searchId);
     }
 
