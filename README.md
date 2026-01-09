@@ -1,141 +1,162 @@
-# 🌍 Travel Optimizer - Manual do Sistema
+# OptiWay: Plataforma de Otimização Multimodal de Itinerários de Viagem
 
-O **Travel Optimizer** é uma plataforma avançada de planejamento de viagens que utiliza inteligência artificial e otimização matemática para encontrar o roteiro perfeito, equilibrando **custo** e **tempo**.
-
----
-
-## 🚀 Como o Sistema Funciona?
-
-O sistema opera em um fluxo de quatro etapas principais:
-
-### 1. Coleta de Dados (Crawlers)
-Quando você solicita um roteiro, o sistema ativa "robôs" de busca (**Crawlers**) que consultam preços em tempo real:
-- **Amadeus API**: Conecta-se diretamente aos sistemas das companhias aéreas e redes de hotéis.
-- **Google Flights**: Simula buscas via navegador (Selenium) para obter preços de voos públicos.
-- **Cache Inteligente**: Resultados de buscas anteriores são armazenados localmente (SQLite) por 24 horas para garantir respostas instantâneas e economizar chamadas de API.
-
-### 2. Otimização Híbrida (Voo + Solo)
-Diferente de buscadores comuns, o Travel Optimizer entende a geografia:
-- Se um destino não possui aeroporto (ex: Ituiutaba), o sistema calcula automaticamente o trajeto de **carro alugado** a partir do aeroporto mais próximo (ex: Uberlândia).
-- Ele combina voos e trechos terrestres no mesmo itinerário final.
-
-### 3. O "Cérebro" (Solver Matemático)
-O coração do sistema é um modelo de **Otimização Linear Inteira** construído com a biblioteca **PuLP**. 
-- O problema é modelado como uma variação do "Problema do Caixeiro Viajante" (TSP).
-- **Função Objetivo**: O sistema busca minimizar um valor calculado pelo peso que você definiu:
-  - `Escore = (Peso_Custo * Gasto_Total) + (Peso_Tempo * Duração_Total)`
-- **Restrições**: O Solver garante que você visite todas as cidades obrigatórias, respeite a quantidade de dias de estadia e retorne (se solicitado) à cidade de origem.
-
-### 4. Interface do Usuário (UI)
-- **FastAPI Dashboard**: Uma interface web moderna e rápida (usando Bootstrap) onde você configura passageiros, datas e pesos.
-- **Streamlit App**: Uma alternativa visual para análise detalhada de logs e depuração do motor de busca.
-- **Visualização**: Mapas interativos (Leaflet) mostram sua rota, enquanto cartões detalham o custo de cada etapa.
+**Documentação Técnica e Manual do Sistema**
 
 ---
 
-## 🛠️ Opções Detalhadas
+## 1. Resumo Executivo
 
-| Opção | Descrição |
-| :--- | :--- |
-| **Origens e Destinos** | Você pode sair de múltiplas cidades e visitar diversos destinos em uma única viagem. |
-| **Cidades Obrigatórias** | Garante que o roteiro inclua paradas específicas, mesmo que não sejam o destino final. |
-| **Adultos/Crianças** | Ajusta o custo total das passagens e diárias por pessoa. |
-| **Custo vs Tempo** | Um slider que define sua prioridade. 100% Custo focará no mais barato (mesmo com conexões longas). 100% Tempo focará no mais rápido. |
-| **Buscar Hotéis** | Quando ativo, o sistema busca hotéis reais nas cidades de destino e inclui as diárias no cálculo de custo. |
-| **Alugar Carro** | Quando ativo, o sistema busca custos de aluguel e os utiliza para decidir se vale mais a pena dirigir ou voar entre cidades próximas. |
-| **Dados Mock (Teste)** | Permite testar o sistema sem gastar créditos de API real, gerando dados fictícios rápidos. |
+O **OptiWay** é um sistema distribuído de suporte à decisão projetado para resolver problemas complexos de roteamento turístico. Através da integração de técnicas de **Inteligência Artificial** (Web Crawling e Processamento de Dados) e **Pesquisa Operacional** (Programação Linear Inteira Mista), a plataforma constrói itinerários multimodais ótimos, equilibrando as funções objetivo conflitantes de minimização de custo financeiro e minimização de tempo total de viagem.
+
+A arquitetura do sistema segue o padrão de microsserviços, garantindo escalabilidade, desacoplamento e manutenção eficiente de seus componentes críticos: coleta de dados, otimização matemática e interface de usuário.
 
 ---
 
-## 🏗️ Arquitetura Técnica
+## 2. Fundamentação Teórica e Funcionamento
+
+O fluxo de processamento do sistema é estruturado em quatro estágios sequenciais, desenhados para transformar dados brutos não estruturados em planos de viagem acionáveis e matematicamente otimizados.
+
+### 2.1 Coleta e Normalização de Dados (Data Acquisition Layer)
+O subsistema de **Crawlers** atua como a camada de percepção da plataforma, responsável pela aquisição de dados de mercado em tempo real. Implementa uma estratégia híbrida:
+*   **Integração via API (Amadeus)**: Para acesso determinístico e estruturado a inventários globais de companhias aéreas e redes hoteleiras.
+*   **Web Scraping (Playwright/Selenium)**: Emula o comportamento humano para extrair dados de fontes públicas (Google Flights), garantindo a amplitude da busca.
+*   **Persistência e Cache**: Implementa uma camada de cache local (SQLite) com política de expiração (TTL de 24 horas), mitigando a latência de rede e reduzindo custos operacionais de chamadas de API.
+
+### 2.2 Otimização Multimodal (Multimodal Reasoning)
+Diferenciando-se de agregadores convencionais, o OptiWay incorpora lógica geoespacial avançada:
+*   **Geração de Arestas Sintéticas**: Identifica a inexistência de conexões aéreas diretas e calcula, via Distância de Haversine e APIs de roteamento, a viabilidade de conexões terrestres (transfer/carro alugado) entre nós vizinhos (ex: raio de 400km).
+*   **Grafo de Transporte Unificado**: Constrói um supergrafo onde vértices representam cidades/aeroportos e arestas representam voos ou trajetos terrestres, permitindo a otimização simultânea de diferentes modais.
+
+### 2.3 Otimização Combinatória (Solver Engine)
+O núcleo decisório do sistema baseia-se em modelagem matemática rigorosa:
+*   **Modelo**: Variação do Problema do Caixeiro Viajante Assimétrico (ATSP) com janelas de tempo e restrições de obrigatoriedade.
+*   **Formulação**: Programação Linear Inteira Mista (MILP), implementada através da biblioteca **PuLP**.
+*   **Função Objetivo ($Z$)**:
+    $$ \min Z = \sum (w_c \cdot Custo + w_t \cdot Tempo) $$
+    Onde $w_c$ e $w_t$ são os pesos normalizados definidos pelo usuário, permitindo a construção da fronteira de Pareto entre economia e rapidez.
+*   **Algoritmo**: Branch-and-Cut (via solucionador CBC), garantindo a otimalidade global ou o melhor gap de integridade possível dentro do tempo limite.
+
+### 2.4 Interface e Experiência do Usuário (Presentation Layer)
+*   **Dashboard Interativo**: Desenvolvido sobre **FastAPI** e templates Jinja2, oferece uma UX responsiva para definição de parâmetros de otimização.
+*   **Visualização de Dados**: Emprega bibliotecas como Leaflet.js para renderização geoespacial das rotas e plotagem gráfica das componentes de custo.
+
+---
+
+## 3. Arquitetura de Software
+
+A solução adota uma arquitetura orientada a serviços (SOA) moderna.
 
 ```mermaid
 graph TD
-    UI[Frontend - Dashboard / Streamlit] --> API[FastAPI Backend]
-    API --> CRAWLER[Crawler Service]
-    CRAWLER --> CACHE[(Local SQLite Cache)]
-    CRAWLER --> AMADEUS[Amadeus API]
-    CRAWLER --> GOOGLE[Google Flights]
-    API --> SOLVER[PuLP Solver]
-    SOLVER --> RESULT[Itinerário Otimizado]
-    RESULT --> UI
+    User[Cliente Web] --> Gateway[API Gateway / Main App]
+    
+    subgraph Core Services
+        Gateway --> CrawlerService[Flight Crawler Service]
+        Gateway --> SolverService[Solver Optimization Service]
+    end
+    
+    subgraph Data & External
+        CrawlerService --> Cache[(SQLite Cache)]
+        CrawlerService --> ExternalAPIs[Amadeus / Google / Kayak]
+        SolverService --> MathEngine[CBC Solver Integration]
+    end
+    
+    SolverService --> Result[Plano Otimizado JSON]
+    Result --> Gateway
+```
+
+### Componentes do Sistema
+| Componente | Função Técnica | Tecnologias Chave |
+| :--- | :--- | :--- |
+| **Main App** | Orquestração, Auth, Gateway e UI | FastAPI, Jinja2, JWT |
+| **Flight Crawler** | Extração e normalização de dados | Playwright, BeautifulSoup, Pandas |
+| **Solver Service** | Modelagem matemática e resolução | PuLP, NumPy, SciPy |
+
+---
+
+## 4. Estrutura do Repositório
+
+Organização lógica do código-fonte seguindo padrões de engenharia de software Python.
+
+- `app/`: Aplicação Principal
+    - `api/`: Definição de rotas e controladores.
+    - `db/`: Modelos ORM (SQLAlchemy) e esquemas de banco de dados.
+    - `services/`: Lógica de negócio e adaptadores de serviço.
+    - `templates/`: Camada de visualização (HTML/CSS/JS).
+- `flight_crawler/`: Microsserviço de Coleta de Dados
+    - `scrapers/`: Implementações específicas de scrapers (Design Pattern Strategy).
+- `solver_service/`: Microsserviço de Otimização
+    - `models/`: Formulações matemáticas PuLP.
+- `docs/`: Documentação técnica detalhada dos serviços.
+
+---
+
+## 5. Procedimentos de Instalação e Execução
+
+O sistema suporta implantação via contêineres (recomendado para reprodutibilidade) ou execução direta em ambiente virtual Python.
+
+### 5.1 Pré-requisitos
+*   Docker Engine & Docker Compose (Recomendado)
+*   Ou Python 3.10+ com `pip` e `venv`.
+
+### 5.2 Execução Containerizada (Docker)
+
+O arquivo `docker-compose.yml` orquestra o ciclo de vida de todos os microsserviços.
+
+```bash
+# Compilar e iniciar os serviços em background
+docker compose up --build -d
+```
+
+**Endereçamento dos Serviços:**
+*   Main App (UI & Gateway): `http://localhost:8000`
+*   Flight Crawler Service: `http://localhost:8001`
+*   Solver Service: `http://localhost:8002`
+
+### 5.3 Execução Manual (Desenvolvimento)
+
+Para depuração ou desenvolvimento isolado de componentes:
+
+**1. Main App (Backend):**
+```bash
+pip install -r requirements.txt
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+**2. Flight Crawler:**
+```bash
+pip install -r flight_crawler/requirements.txt
+python -m playwright install --with-deps  # Instalação de binários de navegador
+uvicorn flight_crawler.main:app --host 0.0.0.0 --port 8001 --reload
+```
+
+**3. Solver Service:**
+```bash
+# Compartilha dependências base
+uvicorn solver_service.main:app --host 0.0.0.0 --port 8002 --reload
 ```
 
 ---
 
-## 📂 Estrutura de Pastas
+## 6. Documentação Detalhada dos Subsistemas (API Reference)
 
-- `app/api/`: Endpoints do backend.
-- `app/services/solver_service.py`: Lógica matemática da otimização.
-- `app/templates/`: Arquivos HTML da interface web.
-- `data/crawler.py`: Motores de busca de dados reais.
-- `data/database.py`: Gerenciamento do cache local.
+Para uma compreensão aprofundada da implementação e dos contratos de interface de cada módulo, consulte a documentação específica abaixo. Cada subsistema possui um papel distinto na arquitetura distribuída:
+
+### 6.1 Main Service (Orquestrador e Gateway)
+Atua como o ponto de entrada e controlador da aplicação. É responsável pela autenticação de usuários, gestão de sessões, persistência de histórico e, crucialmente, pela orquestração das chamadas aos serviços de *crawling* e *solving*.
+*   **Foco**: Regras de negócio, Gestão de Estado, API Gateway.
+*   **Consulte a especificação completa**: [📄 docs/main-service.md](docs/main-service.md)
+
+### 6.2 Flight Crawler Service (Camada de Percepção)
+O "olho" do sistema. Este serviço encapsula a complexidade de extrair dados de diversas fontes externas (Amadeus, Google Flights, Kayak, etc.). Ele normaliza dados heterogêneos em uma estrutura canônica (`Flight`, `Hotel`, `CarRental`) para consumo pelo restante do sistema.
+*   **Foco**: Web Scraping, Integração de APIs de terceiros, Normalização de Dados.
+*   **Consulte a especificação completa**: [📄 docs/flight-crawler-service.md](docs/flight-crawler-service.md)
+
+### 6.3 Solver Service (Motor de Otimização)
+O "cérebro" matemático. Recebe um grafo ponderado e aplica algoritmos de Pesquisa Operacional para encontrar a solução ótima. Isolado para permitir escalabilidade vertical independente, dado seu caráter computacionalmente intensivo (CPU-bound).
+*   **Foco**: Modelagem Matemática, Algoritmos Exactos (Branch-and-Cut), Heurísticas.
+*   **Consulte a especificação completa**: [📄 docs/solver-service.md](docs/solver-service.md)
 
 ---
 
-> [!TIP]
-> Para obter os melhores resultados, use pesos equilibrados (ex: 70% Custo, 30% Tempo) para evitar conexões excessivamente longas apenas para economizar poucos reais.
-
-
-## Colocar para rodar em docker
-
-## ⚙️ Execução dos Serviços
-
-O projeto possui três serviços principais. Você pode executá-los localmente via Python/uvicorn ou usando Docker Compose.
-
-### Execução local (Python)
-
-- Backend (`main`):
-  - Instale dependências: `pip install -r requirements.txt`
-  - Execute: `uvicorn main:app --host 0.0.0.0 --port 8000 --reload`
-
-- Flight Crawler (`flight_crawler.main`):
-  - Dependências do crawler: `pip install -r flight_crawler/requirements.txt`
-  - Instalar navegadores (Playwright): `python -m playwright install --with-deps`
-  - Execute: `uvicorn flight_crawler.main:app --host 0.0.0.0 --port 8001 --reload`
-
-- Solver Service (`solver_service.main`):
-  - Reaproveita `requirements.txt` do projeto: `pip install -r requirements.txt`
-  - Execute: `uvicorn solver_service.main:app --host 0.0.0.0 --port 8002 --reload`
-
-### Execução com Docker Compose
-
-Use o arquivo `docker-compose.yml` para subir os três serviços:
-
-```
-docker compose up --build
-```
-
-Serviços disponíveis:
-- API Backend: http://localhost:8000
-- Flight Crawler: http://localhost:8001
-- Solver Service: http://localhost:8002
-
-Defina variáveis de ambiente quando necessário (por exemplo, AMADEUS):
-
-```
-export AMADEUS_API_KEY="sua_chave"
-export AMADEUS_API_SECRET="seu_segredo"
-docker compose up --build
-```
-
-## 📑 Documentação das APIs
-
-Resumo das principais APIs e links para detalhes:
-
-- Backend (FastAPI):
-  - Autenticação: `/auth/register`, `/auth/login`
-  - Localizações: `/api/locations/search`, `/api/locations/validate`
-  - Viagens: `/api/solve`, `/api/itineraries`, `/api/itineraries/{id}`
-  - Usuários: `/users/history`, `/users/history/{search_id}`
-  - Detalhes e exemplos: ver [docs/main-service.md](docs/main-service.md)
-
-- Flight Crawler:
-  - Crawling de voos: `POST /api/v1/crawl`
-  - Crawling de carros: `POST /api/v1/crawl-cars`
-  - Detalhes e exemplos: ver [docs/flight-crawler-service.md](docs/flight-crawler-service.md)
-
-- Solver Service:
-  - Resolver itinerário: `POST /api/v1/solve`
-  - Health/Info: `GET /api/v1/health`, `GET /api/v1/info`
-  - Detalhes e exemplos: ver [docs/solver-service.md](docs/solver-service.md)
+> **Nota Acadêmica**: Desenvolvido sob a ótica de Sistemas de Informação Distribuídos e Pesquisa Operacional Aplicada. Consulte a pasta `docs/` para especificações formais de cada subsistema.
