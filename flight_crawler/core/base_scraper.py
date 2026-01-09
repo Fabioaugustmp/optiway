@@ -1,7 +1,11 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
 from playwright.async_api import Page, BrowserContext
-from flight_crawler.core.models import FlightSearchInput, FlightResult, CarSearchInput, CarResult
+from flight_crawler.core.models import (
+    FlightSearchInput, FlightResult, 
+    CarSearchInput, CarResult,
+    HotelSearchInput, HotelResult
+)
 from flight_crawler.core.browser_manager import BrowserManager
 from datetime import datetime
 import logging
@@ -59,6 +63,29 @@ class BaseScraper(ABC):
     async def _perform_car_search(self, page: Page, search_input: CarSearchInput) -> List[CarResult]:
         """
         Optional: Concrete classes can implement this for car rental search.
+        """
+        return []
+
+    async def scrape_hotels(self, search_input: HotelSearchInput) -> List[HotelResult]:
+        """
+        Main entry point for hotel scraping.
+        """
+        context = await self.browser_manager.get_new_context()
+        page = await context.new_page()
+        results = []
+        try:
+            await self._apply_stealth(page)
+            results = await self._perform_hotel_search(page, search_input)
+        except Exception as e:
+            self.logger.error(f"Error during hotel scrape: {e}")
+            await self._handle_error(page, e)
+        finally:
+            await context.close()
+        return results
+
+    async def _perform_hotel_search(self, page: Page, search_input: HotelSearchInput) -> List[HotelResult]:
+        """
+        Optional: Concrete classes can implement this for hotel search.
         """
         return []
 

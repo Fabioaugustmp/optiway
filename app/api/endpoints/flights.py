@@ -147,7 +147,9 @@ def solve_trip(
         # Fetch Missing
         if missing_cities:
             print(f"Fetching API for missing hotels in: {missing_cities}")
-            new_hotels = crawler.fetch_hotels(missing_cities)
+            # Calculate check-out date based on return_date or stay_days_per_city
+            check_out = request.return_date if request.return_date else (request.start_date + timedelta(days=request.stay_days_per_city or 1))
+            new_hotels = crawler.fetch_hotels(missing_cities, check_in=request.start_date, check_out=check_out)
             hotels.extend(new_hotels)
 
 

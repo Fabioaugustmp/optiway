@@ -24,7 +24,7 @@ class BaseCrawler(ABC):
         pass
 
     @abstractmethod
-    def fetch_hotels(self, cities: List[str]) -> List[Hotel]:
+    def fetch_hotels(self, cities: List[str], check_in: datetime = None, check_out: datetime = None) -> List[Hotel]:
         pass
 
     @abstractmethod
@@ -124,7 +124,7 @@ class AmadeusCrawler(BaseCrawler):
 
         return flights
 
-    def fetch_hotels(self, cities: List[str]) -> List[Hotel]:
+    def fetch_hotels(self, cities: List[str], check_in: datetime = None, check_out: datetime = None) -> List[Hotel]:
         if not self.client_ready:
             return []
 
@@ -224,17 +224,36 @@ class FlightCrawlerProxy(BaseCrawler):
             search_inputs = []
             origin_iata = self._get_iata(origin)
             
+            # Create map for IATA -> Requested City Name
+            iata_map = {}
+            # Map origin IATA
+            if origin_iata:
+                iata_map[origin_iata] = origin
+            
+            # Map destinations IATA
+            dest_iatas = {} 
             for dest in destinations:
-                dest_iata = self._get_iata(dest)
-                search_inputs.append({
-                    "origin": origin_iata,
-                    "destination": dest_iata,
-                    "departure_date": date.strftime("%Y-%m-%d"),
-                    "passengers": adults + children,
-                    "scrapers": [self.scraper_name]
-                })
+                d_iata = self._get_iata(dest)
+                if d_iata:
+                    iata_map[d_iata] = dest
+                    dest_iatas[dest] = d_iata
 
-            response = requests.post(self.base_url, json=search_inputs, timeout=120)
+            requests_payload = []
+            for dest in destinations:
+                d_iata = dest_iatas.get(dest)
+                if d_iata:
+                    requests_payload.append({
+                        "origin": origin_iata,
+                        "destination": d_iata,
+                        "departure_date": date.strftime("%Y-%m-%d"),
+                        "passengers": adults + children,
+                        "scrapers": [self.scraper_name]
+                    })
+
+            if not requests_payload:
+                return []
+
+            response = requests.post(self.base_url, json=requests_payload, timeout=120)
             response.raise_for_status()
             
             result_data = response.json()
@@ -250,9 +269,16 @@ class FlightCrawlerProxy(BaseCrawler):
 
             if scraper_key and scraper_key in results:
                 for f in results[scraper_key]:
+                    # Resolve Origin/Dest back to requested names if possible
+                    f_origin = f.get("origin") or origin_iata
+                    f_dest = f.get("destination")
+                    
+                    final_origin = iata_map.get(f_origin, f_origin if f_origin else origin)
+                    final_dest = iata_map.get(f_dest, f_dest if f_dest else destinations[0])
+
                     flights.append(Flight(
-                        origin=origin,
-                        destination=f.get("destination_name", destinations[0]), 
+                        origin=final_origin,
+                        destination=final_dest, 
                         price=float(f.get("price", 0)),
                         duration_minutes=int(f.get("duration_minutes", 0)) or 180,
                         airline=f.get("airline", "N/A"),
@@ -273,8 +299,53 @@ class FlightCrawlerProxy(BaseCrawler):
     def _get_iata(self, city_name: str) -> str:
         return get_location_service().resolve_iata(city_name)
 
-    def fetch_hotels(self, cities: List[str]) -> List[Hotel]:
-        return []
+    def fetch_hotels(self, cities: List[str], check_in: datetime = None, check_out: datetime = None) -> List[Hotel]:
+        """Fetch hotels from the microservice."""
+        if self.scraper_name != "kayak":
+            return []
+        
+        try:
+            # Use provided dates or generate default dates (2 days from now, 1 night stay)
+            if not check_in:
+                check_in = datetime.now() + timedelta(days=2)
+            if not check_out:
+                check_out = check_in + timedelta(days=1)
+            
+            search_inputs = []
+            for city in cities:
+                search_inputs.append({
+                    "city": city,
+                    "check_in_date": check_in.strftime("%Y-%m-%d"),
+                    "check_out_date": check_out.strftime("%Y-%m-%d"),
+                    "guests": 2,
+                    "rooms": 1,
+                    "scrapers": ["kayak"]
+                })
+            
+            response = requests.post("http://localhost:8001/api/v1/crawl-hotels", json=search_inputs, timeout=120)
+            response.raise_for_status()
+            
+            result_data = response.json()
+            if result_data.get("status") != "success":
+                logger.warning(f"Hotel crawl returned non-success status")
+                return []
+            
+            hotels = []
+            results = result_data.get("data", {})
+            for scraper_key, hotel_list in results.items():
+                for h in hotel_list:
+                    hotels.append(Hotel(
+                        city=h.get("city") or cities[0],
+                        name=h.get("name", "Unknown Hotel"),
+                        price_per_night=float(h.get("price_per_night", 0)),
+                        rating=float(h.get("rating", 3.0)) if h.get("rating") else 3.0
+                    ))
+            
+            logger.info(f"Fetched {len(hotels)} hotels from flight_crawler")
+            return hotels
+        except Exception as e:
+            logger.error(f"Error calling FlightCrawler for hotels: {e}")
+            return []
 
     def fetch_car_rentals(self, cities: List[str], date: datetime = None) -> List[CarRental]:
         """Fetch car rentals from the microservice."""

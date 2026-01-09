@@ -118,6 +118,7 @@ def solve_itinerary(
                 
                 f_cost = cost_matrix[i, j]
                 if f_cost >= M:
+                    prob += x[i, j] == 0  # Force invalid edge to 0
                     continue  # Skip invalid routes
                 
                 # Calculate total cost for this edge
