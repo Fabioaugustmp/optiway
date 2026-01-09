@@ -147,6 +147,9 @@
 
         <!-- Results Container (Injected via JS) -->
         <div id="resultsContainer" class="d-none"></div>
+
+        <!-- Itinerary Detail Inline -->
+        <div id="detailState" class="d-none"></div>
     </div>
 </div>
 
@@ -244,7 +247,7 @@
                         </div>
                     </div>
                 `;
-                item.addEventListener('click', (ev) => { ev.preventDefault(); if (h.id) showItineraryModal(h.id); });
+                item.addEventListener('click', (ev) => { ev.preventDefault(); if (h.id) loadDetailInline(h.id); });
                 list.appendChild(item);
             });
         } catch (e) {
@@ -349,6 +352,9 @@
         const container = document.getElementById('resultsContainer');
         container.innerHTML = '';
         container.classList.remove('d-none');
+
+        // Hide inline detail if visible
+        document.getElementById('detailState').classList.add('d-none');
 
         if (data.status !== 'Optimal') {
             let msg = '';
@@ -600,13 +606,13 @@
         container.innerHTML = summary + table + mapHtml;
 
         // Render Alternatives
-        renderAlternatives(data.alternatives);
+        renderAlternatives(data.alternatives, 'alternativesContainer');
 
         // Render Hotels
-        renderHotels(data.hotels_found);
+        renderHotels(data.hotels_found, 'hotelsContainer');
 
         // Init Map
-        initMap(mapSegments);
+        initMap(mapSegments, 'map');
     }
 
     // Show itinerary detail in modal
@@ -659,8 +665,9 @@
         }
     }
 
-    function renderHotels(hotels) {
-        const container = document.getElementById('hotelsContainer');
+    function renderHotels(hotels, containerId = 'hotelsContainer') {
+        const container = document.getElementById(containerId);
+        if (!container) return;
         if (!hotels || hotels.length === 0) {
             container.innerHTML = '<p class="text-muted text-center p-3">Nenhum hotel encontrado.</p>';
             return;
@@ -689,18 +696,24 @@
     }
 
     // Map Logic (Leaflet)
-    function initMap(segments) {
+    function initMap(segments, elementId = 'map') {
         if (typeof L === 'undefined') return;
-        if (!segments || segments.length === 0) return;
-
-        // Reset Map if exists
-        if (window.currentMap) {
-            window.currentMap.remove();
-            window.currentMap = null;
+        const container = document.getElementById(elementId);
+        if (!container) return;
+        if (!segments || segments.length === 0) {
+            container.innerHTML = '<div class="text-center p-5 text-muted">Sem dados de mapa disponíveis</div>';
+            return;
         }
 
-        const map = L.map('map');
-        window.currentMap = map;
+        // Reset Map if exists
+        window.currentMaps = window.currentMaps || {};
+        if (window.currentMaps[elementId]) {
+            window.currentMaps[elementId].remove();
+            window.currentMaps[elementId] = null;
+        }
+
+        const map = L.map(elementId);
+        window.currentMaps[elementId] = map;
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap'
@@ -744,6 +757,203 @@
         }
     }
 
+    // Inline itinerary detail renderer (reuse itinerary_detail layout inside dashboard)
+    async function loadDetailInline(searchId) {
+        const detail = document.getElementById('detailState');
+        const welcome = document.getElementById('welcomeState');
+        const results = document.getElementById('resultsContainer');
+
+        welcome.classList.add('d-none');
+        results.classList.add('d-none');
+        detail.classList.remove('d-none');
+        detail.innerHTML = `<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Carregando detalhes...</p></div>`;
+
+        try {
+            const res = await fetch(`/users/history/${searchId}`, {
+                headers: { 'Authorization': 'Bearer ' + getCookie('access_token') }
+            });
+            if (!res.ok) {
+                detail.innerHTML = `<div class="alert alert-danger">Falha ao carregar detalhamento: ${res.status} ${res.statusText}</div>`;
+                return;
+            }
+            const data = await res.json();
+            renderDetailView(detail, data);
+        } catch (err) {
+            console.error(err);
+            detail.innerHTML = `<div class="alert alert-danger">Erro ao carregar detalhamento.</div>`;
+        }
+    }
+
+    function renderDetailView(container, data) {
+        if (!data || !data.itinerary) {
+            container.innerHTML = '<p class="text-muted">Nenhum detalhe disponível.</p>';
+            return;
+        }
+
+        let hasCar = false;
+        data.itinerary.forEach(leg => {
+            const flight = leg.flight || {};
+            if (flight.airline && (flight.airline.includes('Carro') || flight.airline.includes('Aluguel'))) {
+                hasCar = true;
+            }
+        });
+
+        const flightCost = (data.cost_breakdown && data.cost_breakdown.flight) || 0;
+        const carCost = (data.cost_breakdown && data.cost_breakdown.car) || 0;
+
+        const hybridAlert = hasCar ? `<div class="alert alert-success mb-3">
+            <div class="d-flex align-items-center">
+                <span class="fs-4 me-2">🚗</span>
+                <div>
+                    <strong>Roteiro Híbrido Detectado!</strong><br>
+                    Como o destino não possui aeroporto próximo, incluímos um trecho terrestre recomendado.
+                </div>
+            </div>
+        </div>` : '';
+
+        container.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <button class="btn btn-link px-0" id="btnBackToList">← Voltar para a lista</button>
+                <span class="text-muted small">Itinerário salvo</span>
+            </div>
+            ${hybridAlert}
+            <div class="card mb-4 border-success shadow-sm">
+                <div class="card-body">
+                    <div class="row text-center align-items-center">
+                        <div class="col-md-4">
+                            <h3 class="text-success">R$ ${data.total_cost.toFixed(2)}</h3>
+                            <small class="text-muted">Custo Total Estimado</small>
+                            <div class="mt-2">
+                                <small class="d-block">✈️ Aéreo: R$ ${flightCost.toFixed(2)}</small>
+                                <small class="d-block">🚗 Carro: R$ ${carCost.toFixed(2)}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4 border-start border-end">
+                            <h3>${(data.total_duration / 60).toFixed(1)}h</h3>
+                            <small class="text-muted">Tempo Total</small>
+                        </div>
+                        <div class="col-md-4">
+                            ${hasCar ? '<span class="badge bg-success fs-6">🚗 Rota Híbrida</span>' : '<span class="badge bg-primary fs-6">✈️ Rota Aérea</span>'}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <ul class="nav nav-tabs mb-3" id="detailTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="itinerary-tab" data-bs-toggle="tab" data-bs-target="#itinerary-content-detail" type="button" role="tab">📅 Itinerário Final</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="alternatives-tab" data-bs-toggle="tab" data-bs-target="#alternatives-content-detail" type="button" role="tab">🔍 Outras Opções Consultadas</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="hotels-tab" data-bs-toggle="tab" data-bs-target="#hotels-content-detail" type="button" role="tab">🏨 Hotéis Encontrados</button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="detailTabContent">
+                <div class="tab-pane fade show active" id="itinerary-content-detail" role="tabpanel">
+                    <div class="card shadow-sm mb-4">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Rota</th>
+                                        <th>Cia Aérea</th>
+                                        <th>Partida</th>
+                                        <th>Chegada</th>
+                                        <th>Duração</th>
+                                        <th>Preço</th>
+                                        <th>Detalhes</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="detailItineraryBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="alternatives-content-detail" role="tabpanel">
+                    <div id="detailAlternativesContainer">
+                        <p class="text-muted text-center p-3">Nenhuma alternativa disponível.</p>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="hotels-content-detail" role="tabpanel">
+                    <div id="detailHotelsContainer">
+                        <p class="text-muted text-center p-3">Nenhum hotel disponível.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mt-4">
+                <div class="card-header bg-white"><h5 class="mb-0">🗺️ Visualização no Mapa</h5></div>
+                <div class="card-body p-0">
+                    <div id="detailMap" style="height: 450px; width: 100%;"></div>
+                </div>
+            </div>
+        `;
+
+        // Back button handler
+        const backBtn = document.getElementById('btnBackToList');
+        backBtn.addEventListener('click', () => {
+            container.classList.add('d-none');
+            document.getElementById('welcomeState').classList.remove('d-none');
+        });
+
+        // Fill itinerary table and map
+        const tbody = document.getElementById('detailItineraryBody');
+        const fmtTime = (isoStr) => {
+            if (!isoStr) return 'N/A';
+            const d = new Date(isoStr);
+            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ` <small class="text-muted">${d.getDate()}/${d.getMonth() + 1}</small>`;
+        };
+
+        const mapSegments = [];
+        data.itinerary.forEach(leg => {
+            const flight = leg.flight || {};
+            const isCar = flight.airline && (flight.airline.includes('Carro') || flight.airline.includes('Aluguel'));
+            const rowClass = isCar ? 'table-success' : '';
+            const icon = isCar ? '🚗' : '✈️';
+
+            let flightNumDisplay = '';
+            if (flight.flight_number && flight.flight_number !== 'N/A') {
+                flightNumDisplay = `<br><small class="text-muted">${flight.flight_number}</small>`;
+            }
+            const airlineDisplay = isCar ? `<strong>${flight.airline}</strong>` : (flight.airline || 'N/A') + flightNumDisplay;
+
+            const depTime = fmtTime(flight.departure_time);
+            const arrTime = fmtTime(flight.arrival_time);
+
+            const row = document.createElement('tr');
+            row.className = rowClass;
+            row.innerHTML = `
+                <td><strong>${leg.origin}</strong><br><small class="text-muted">➝ ${leg.destination}</small></td>
+                <td>${icon} ${airlineDisplay}</td>
+                <td>${depTime}</td>
+                <td>${arrTime}</td>
+                <td>${leg.duration} min</td>
+                <td>R$ ${leg.price.toFixed(2)}</td>
+                <td><span class="badge bg-secondary">${flight.stops || 0} paradas</span></td>
+            `;
+            tbody.appendChild(row);
+
+            if (leg.origin_coords && leg.dest_coords) {
+                mapSegments.push({
+                    from_name: leg.origin,
+                    to_name: leg.destination,
+                    from: leg.origin_coords,
+                    to: leg.dest_coords,
+                    airline: flight.airline || 'N/A',
+                    dep: depTime,
+                    arr: arrTime
+                });
+            }
+        });
+
+        renderAlternatives(data.alternatives, 'detailAlternativesContainer');
+        renderHotels(data.hotels_found, 'detailHotelsContainer');
+        initMap(mapSegments, 'detailMap');
+    }
+
     // Capture Alternatives Data
     let globalAlternatives = {};
 
@@ -751,7 +961,6 @@
         globalAlternatives = alternatives || {};
         const container = document.getElementById(containerId);
         if (!container) return;
-
         container.innerHTML = '';
 
         if (Object.keys(globalAlternatives).length === 0) {
@@ -759,14 +968,14 @@
             return;
         }
 
-        let html = '<div class="accordion" id="accordionAlternatives">';
+        const accordionId = containerId + '-accordion';
+        let html = `<div class="accordion" id="${accordionId}">`;
 
         Object.keys(globalAlternatives).forEach((key, index) => {
             const flights = globalAlternatives[key];
-            const collapseId = `collapse-${index}`;
-            const headingId = `heading-${index}`;
+            const collapseId = `${accordionId}-collapse-${index}`;
+            const headingId = `${accordionId}-heading-${index}`;
 
-            // Extract Origin/Dest from key (e.g. "São Paulo-Miami")
             const [origin, dest] = key.split('-');
 
             html += `
@@ -776,7 +985,7 @@
                             ✈️ Opções: ${origin} ➝ ${dest} (${flights.length})
                         </button>
                     </h2>
-                    <div id="${collapseId}" class="accordion-collapse collapse ${index === 0 ? 'show' : ''}" aria-labelledby="${headingId}" data-bs-parent="#accordionAlternatives">
+                    <div id="${collapseId}" class="accordion-collapse collapse ${index === 0 ? 'show' : ''}" aria-labelledby="${headingId}" data-bs-parent="#${accordionId}">
                         <div class="accordion-body p-0">
                             <div class="table-responsive">
                                 <table class="table table-striped table-hover mb-0">

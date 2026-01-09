@@ -60,14 +60,38 @@ def get_history_detail(
     except Exception:
         itinerary_list = it.details_json
 
+    # Parse alternatives if available
+    alternatives = None
+    if it.alternatives_json:
+        try:
+            alternatives = json.loads(it.alternatives_json)
+        except Exception:
+            alternatives = it.alternatives_json
+    
+    # Parse cost breakdown if available
+    cost_breakdown = None
+    if it.cost_breakdown_json:
+        try:
+            cost_breakdown = json.loads(it.cost_breakdown_json)
+        except Exception:
+            pass
+
+    # Parse hotels if available
+    hotels_found = []
+    if it.hotels_json:
+        try:
+            hotels_found = json.loads(it.hotels_json)
+        except Exception:
+            pass
+
     resp = {
         "status": "Saved",
         "itinerary": itinerary_list,
         "total_cost": it.total_cost,
         "total_duration": it.total_duration,
         "warning_message": None,
-        "alternatives": None,
-        "cost_breakdown": None,
-        "hotels_found": []
+        "alternatives": alternatives,
+        "cost_breakdown": cost_breakdown,
+        "hotels_found": hotels_found
     }
     return resp
