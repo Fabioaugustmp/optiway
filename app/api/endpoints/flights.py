@@ -280,6 +280,7 @@ def solve_trip(
     result.hotels_found = hotels
     result.cars_found = cars
 
+    print(f"DEBUG: Returning {len(cars)} cars and {len(alternatives_map)} alternative groups")
     return result
 
 

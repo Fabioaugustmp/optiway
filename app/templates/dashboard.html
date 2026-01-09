@@ -371,8 +371,10 @@
                 // Alternatives (Flights)
                 if (data.alternatives && Object.keys(data.alternatives).length > 0) {
                     hasFallback = true;
-                    renderAlternatives(data.alternatives);
                     fallbackHtml += `<h5>✈️ Opções de Voos Encontradas</h5><div id="alternativesFallback"></div>`;
+                    setTimeout(() => {
+                        renderAlternatives(data.alternatives, 'alternativesFallback');
+                    }, 150);
                 }
 
                 // Cars
@@ -403,12 +405,6 @@
                 if (hasFallback) {
                     container.innerHTML += fallbackHtml + '</div>';
 
-                    // Move rendered element to fallback container logic
-                    setTimeout(() => {
-                        if (document.getElementById('alternativesContainer') && document.getElementById('alternativesFallback')) {
-                            document.getElementById('alternativesFallback').innerHTML = document.getElementById('alternativesContainer').innerHTML;
-                        }
-                    }, 150);
                 }
 
                 return;
@@ -750,9 +746,11 @@
     // Capture Alternatives Data
     let globalAlternatives = {};
 
-    function renderAlternatives(alternatives) {
+    function renderAlternatives(alternatives, containerId = 'alternativesContainer') {
         globalAlternatives = alternatives || {};
-        const container = document.getElementById('alternativesContainer');
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
         container.innerHTML = '';
 
         if (Object.keys(globalAlternatives).length === 0) {
