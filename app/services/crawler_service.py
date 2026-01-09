@@ -28,7 +28,7 @@ class BaseCrawler(ABC):
         pass
 
     @abstractmethod
-    def fetch_car_rentals(self, cities: List[str]) -> List[CarRental]:
+    def fetch_car_rentals(self, cities: List[str], date: datetime = None) -> List[CarRental]:
         pass
 
 class MockCrawler(BaseCrawler):
@@ -74,7 +74,7 @@ class MockCrawler(BaseCrawler):
                 hotels.append(Hotel(city=city, name=name, price_per_night=round(price, 2), rating=rating))
         return hotels
 
-    def fetch_car_rentals(self, cities: List[str]) -> List[CarRental]:
+    def fetch_car_rentals(self, cities: List[str], date: datetime = None) -> List[CarRental]:
         cars = []
         for city in cities:
             for _ in range(random.randint(2, 4)):
@@ -251,7 +251,7 @@ class AmadeusCrawler(BaseCrawler):
         
         return all_hotels
 
-    def fetch_car_rentals(self, cities: List[str]) -> List[CarRental]:
+    def fetch_car_rentals(self, cities: List[str], date: datetime = None) -> List[CarRental]:
         # TODO: Implement Amadeus Car Search
         return []
 
@@ -327,8 +327,46 @@ class FlightCrawlerProxy(BaseCrawler):
     def fetch_hotels(self, cities: List[str]) -> List[Hotel]:
         return []
 
-    def fetch_car_rentals(self, cities: List[str]) -> List[CarRental]:
-        return []
+    def fetch_car_rentals(self, cities: List[str], date: datetime = None) -> List[CarRental]:
+        """Fetch car rentals from the microservice."""
+        if self.scraper_name != "kayak":
+            return []
+            
+        try:
+            # Use provided date or fallback to 30 days from now
+            start = date if date else (datetime.now() + timedelta(days=30))
+            end = start + timedelta(days=2)
+            
+            search_inputs = []
+            for city in cities:
+                search_inputs.append({
+                    "city": city,
+                    "pick_up_date": start.strftime("%Y-%m-%d"),
+                    "drop_off_date": end.strftime("%Y-%m-%d"),
+                    "scrapers": ["kayak"]
+                })
+
+            response = requests.post("http://localhost:8001/api/v1/crawl-cars", json=search_inputs, timeout=120)
+            response.raise_for_status()
+            
+            result_data = response.json()
+            if result_data.get("status") != "success":
+                return []
+
+            cars = []
+            results = result_data.get("data", {})
+            for scraper_key, car_list in results.items():
+                for c in car_list:
+                    cars.append(CarRental(
+                        city=c.get("city") or cities[0],
+                        company=c.get("company"),
+                        price_per_day=float(c.get("price", 0)) / 2, # Assuming 2-day search
+                        model=c.get("model")
+                    ))
+            return cars
+        except Exception as e:
+            logger.error(f"Error calling FlightCrawler for cars: {e}")
+            return []
 
 def get_crawler(provider: str = "Mock Data", key: str = None, secret: str = None) -> BaseCrawler:
     if provider == "Amadeus API" and key and secret:

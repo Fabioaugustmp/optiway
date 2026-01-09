@@ -121,7 +121,7 @@ def solve_trip(
                 flights.extend(new_flights)
 
     # 3. Fetch Car Rentals
-    cars = crawler.fetch_car_rentals(all_cities)
+    cars = crawler.fetch_car_rentals(all_cities, date=request.start_date)
 
     # 4. Inject Ground Segments
     ground_legs = generate_ground_segments(all_cities, request.start_date, cars=cars)
@@ -166,7 +166,7 @@ def solve_trip(
                 if nearest:
                     near_city, dist = nearest
                     ground_transport = suggest_ground_transport(near_city, dest, dist)
-                    suggestions.append(f"Fly to {near_city} and take ground transport ({ground_transport})")
+                    suggestions.append(f"Voe para {near_city} e pegue o transporte terrestre ({ground_transport})")
 
         if suggestions:
             suggestion_msg = " | ".join(suggestions)

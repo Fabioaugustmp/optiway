@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
 from playwright.async_api import Page, BrowserContext
-from flight_crawler.core.models import FlightSearchInput, FlightResult
+from flight_crawler.core.models import FlightSearchInput, FlightResult, CarSearchInput, CarResult
 from flight_crawler.core.browser_manager import BrowserManager
+from datetime import datetime
 import logging
 
 class BaseScraper(ABC):
@@ -12,7 +13,7 @@ class BaseScraper(ABC):
 
     async def scrape(self, search_input: FlightSearchInput) -> List[FlightResult]:
         """
-        Main entry point for scraping.
+        Main entry point for flight scraping.
         """
         context = await self.browser_manager.get_new_context()
         page = await context.new_page()
@@ -21,7 +22,24 @@ class BaseScraper(ABC):
             await self._apply_stealth(page)
             results = await self._perform_search(page, search_input)
         except Exception as e:
-            self.logger.error(f"Error during scrape: {e}")
+            self.logger.error(f"Error during flight scrape: {e}")
+            await self._handle_error(page, e)
+        finally:
+            await context.close()
+        return results
+
+    async def scrape_cars(self, search_input: CarSearchInput) -> List[CarResult]:
+        """
+        Main entry point for car rental scraping.
+        """
+        context = await self.browser_manager.get_new_context()
+        page = await context.new_page()
+        results = []
+        try:
+            await self._apply_stealth(page)
+            results = await self._perform_car_search(page, search_input)
+        except Exception as e:
+            self.logger.error(f"Error during car scrape: {e}")
             await self._handle_error(page, e)
         finally:
             await context.close()
@@ -31,16 +49,18 @@ class BaseScraper(ABC):
         """
         Apply stealth scripts to the page.
         """
-        # Default implementation, can be overridden
         from flight_crawler.utils.stealth import inject_stealth
         await inject_stealth(page)
 
     @abstractmethod
     async def _perform_search(self, page: Page, search_input: FlightSearchInput) -> List[FlightResult]:
-        """
-        Concrete implementation of the search logic.
-        """
         pass
+
+    async def _perform_car_search(self, page: Page, search_input: CarSearchInput) -> List[CarResult]:
+        """
+        Optional: Concrete classes can implement this for car rental search.
+        """
+        return []
 
     async def _handle_error(self, page: Page, error: Exception):
         """
