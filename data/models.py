@@ -13,6 +13,7 @@ class Flight:
     arrival_time: datetime
     stops: int = 0
     baggage: str = "N/A"
+    flight_number: str = "N/A"
     details: str = "" # e.g. "GRU->MIA (JJ123)"
 
     @property
@@ -43,4 +44,7 @@ class TravelRequest:
     start_date: datetime
     weight_cost: float # 0.0 to 1.0 (1.0 = Minimize Cost only)
     weight_time: float # 0.0 to 1.0 (1.0 = Minimize Time only)
+    is_round_trip: bool = False
+    stay_days_per_city: int = 1
+    daily_cost_per_person: float = 0.0
     allow_open_jaw: bool = True

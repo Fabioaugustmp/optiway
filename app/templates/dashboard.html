@@ -1,0 +1,730 @@
+{% extends "layout.html" %}
+
+{% block content %}
+</style>
+
+<!-- Hero Search Section -->
+<div class="pb-20 pt-10 px-4 sm:px-6 lg:px-8 -mt-6"
+    style="background: linear-gradient(rgba(27, 0, 136, 0.05), rgba(27, 0, 136, 0.05)), url('https://images.unsplash.com/photo-1436491865332-7a61a109cc05?ixlib=rb-4.0.3&auto=format&fit=crop&w=2074&q=80'); background-size: cover; background-position: center; background-attachment: fixed;">
+    <!-- Negative margin to touch navbar if needed, or just standard padding -->
+    <div class="max-w-7xl mx-auto">
+        <div class="text-center py-10">
+            <h1 class="text-4xl md:text-5xl font-serif font-bold text-brand-navy mb-4 drop-shadow-sm">Para onde você
+                quer ir?</h1>
+            <p class="text-lg text-gray-600 max-w-2xl mx-auto">Descubra rotas otimizadas com o melhor custo-benefício do
+                mercado.</p>
+        </div>
+
+        <!-- Search Widget -->
+        <div class="bg-white rounded-2xl shadow-2xl p-6 md:p-8 transform -translate-y-4">
+            <form id="searchForm">
+                <!-- Trip Type & Passengers Row -->
+                <div class="flex flex-wrap items-center justify-between mb-6 gap-4 border-b border-gray-100 pb-4">
+                    <div class="flex items-center space-x-6">
+                        <label class="flex items-center cursor-pointer group">
+                            <input type="radio" name="trip_type" class="w-4 h-4 text-brand-navy focus:ring-brand-navy"
+                                checked>
+                            <span class="ml-2 text-gray-700 font-medium group-hover:text-brand-navy transition">Ida (Só
+                                Ida)</span>
+                        </label>
+                        <label class="flex items-center cursor-pointer group">
+                            <input type="checkbox" id="isRoundTrip" name="is_round_trip"
+                                class="w-4 h-4 text-brand-navy rounded focus:ring-brand-navy">
+                            <span class="ml-2 text-gray-700 font-medium group-hover:text-brand-navy transition">Ida e
+                                Volta</span>
+                        </label>
+                    </div>
+
+                    <div class="flex items-center space-x-4">
+                        <div class="flex items-center space-x-2 bg-gray-50 px-3 py-1 rounded-md border border-gray-200">
+                            <span class="text-gray-500 text-sm">Adultos</span>
+                            <input type="number" name="pax_adults" value="1" min="1"
+                                class="w-12 bg-transparent border-none focus:ring-0 text-center font-bold text-brand-navy p-0">
+                        </div>
+                        <div class="flex items-center space-x-2 bg-gray-50 px-3 py-1 rounded-md border border-gray-200">
+                            <span class="text-gray-500 text-sm">Crianças</span>
+                            <input type="number" name="pax_children" value="0" min="0"
+                                class="w-12 bg-transparent border-none focus:ring-0 text-center font-bold text-brand-navy p-0">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Inputs Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+
+                    <!-- Origin -->
+                    <div class="md:col-span-3 relative group">
+                        <label
+                            class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Origem</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <span class="text-gray-400">🛫</span>
+                            </div>
+                            <input type="text" name="origin_cities" value="São Paulo"
+                                class="w-full px-5 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-navy focus:border-brand-navy transition duration-200 outline-none text-gray-800 bg-white pl-10 autocomplete-location font-semibold"
+                                placeholder="Cidade ou Aeroporto" autocomplete="off" required>
+                            <div
+                                class="autocomplete-results absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-64 overflow-y-auto mt-1 divide-y divide-gray-100 hidden">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Destination -->
+                    <div class="md:col-span-3 relative group">
+                        <label
+                            class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Destino</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <span class="text-gray-400">🛬</span>
+                            </div>
+                            <input type="text" name="destination_cities" value="Miami"
+                                class="w-full px-5 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-navy focus:border-brand-navy transition duration-200 outline-none text-gray-800 bg-white pl-10 autocomplete-location font-semibold"
+                                placeholder="Cidade ou Aeroporto" autocomplete="off" required>
+                            <div
+                                class="autocomplete-results absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-64 overflow-y-auto mt-1 divide-y divide-gray-100 hidden">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dates -->
+                    <div class="md:col-span-2">
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Ida</label>
+                        <input type="date" name="start_date" id="startDate" required
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-navy focus:border-brand-navy transition duration-200 outline-none text-gray-800 bg-white font-medium text-gray-700">
+                    </div>
+
+                    <div class="md:col-span-2 hidden" id="returnDateDiv">
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Volta</label>
+                        <input type="date" name="return_date" id="returnDate"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-navy focus:border-brand-navy transition duration-200 outline-none text-gray-800 bg-white font-medium text-gray-700">
+                    </div>
+
+                    <!-- Button -->
+                    <div class="md:col-span-2 md:col-start-11">
+                        <button type="submit" id="optimizeBtn"
+                            class="bg-brand-red text-white font-bold py-4 px-8 rounded-lg shadow-lg hover:shadow-xl hover:bg-red-700 transition duration-300 transform hover:-translate-y-0.5 w-full uppercase tracking-wide text-sm h-full flex items-center justify-center">
+                            Buscar
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Advanced Options Toggle -->
+                <div class="mt-6 flex flex-wrap items-center gap-6 justify-between text-sm">
+                    <div class="flex items-center gap-6">
+                        <button type="button"
+                            class="text-brand-navy hover:text-blue-800 font-semibold flex items-center gap-1 focus:outline-none"
+                            onclick="document.getElementById('advancedOptions').classList.toggle('hidden')">
+                            ⚙️ Opções Avançadas
+                        </button>
+                    </div>
+
+                    <!-- Priority Slider (Simplified) -->
+                    <div class="flex items-center gap-3">
+                        <span class="text-gray-500 text-xs uppercase">Prioridade:</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold text-gray-600">Rapidez</span>
+                            <input type="range" id="prioritySlider" min="0" max="100" value="50"
+                                class="w-24 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand-navy">
+                            <span class="text-xs font-bold text-gray-600">Economia</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hidden Advanced Options -->
+                <div id="advancedOptions"
+                    class="hidden mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in-down">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Provedor de
+                            Voos</label>
+                        <select name="provider"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-navy focus:border-brand-navy transition duration-200 outline-none text-gray-800 bg-white py-2 text-sm">
+                            <option value="Kayak" selected>Kayak (Recomendado)</option>
+                            <option value="Google Flights">Google Flights</option>
+                            <option value="Amadeus API">Amadeus API</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Cidades
+                            Obrigatórias</label>
+                        <input type="text" name="mandatory_cities"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-navy focus:border-brand-navy transition duration-200 outline-none text-gray-800 bg-white py-2 text-sm"
+                            placeholder="Ex: JFK (Opcional)">
+                    </div>
+                    <div class="flex items-center pt-6">
+                        <label class="flex items-center cursor-pointer gap-2">
+                            <input type="checkbox" name="search_hotels"
+                                class="w-4 h-4 text-brand-navy rounded focus:ring-brand-navy">
+                            <span class="text-gray-700 font-medium text-sm">Incluir busca de Hotéis</span>
+                        </label>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content Area -->
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+
+    <!-- Loading State -->
+    <div id="loadingSpinner" class="hidden text-center py-20">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-brand-navy border-t-transparent">
+        </div>
+        <h3 class="mt-4 text-xl font-serif font-bold text-brand-navy">Buscando as melhores ofertas...</h3>
+        <p class="text-gray-500">Estamos comparando preços em centenas de companhias aéreas.</p>
+    </div>
+
+    <!-- Results Container -->
+    <div id="resultsContainer" class="hidden space-y-8">
+        <!-- Results injected via JS -->
+    </div>
+
+    <!-- Detail View Container -->
+    <div id="detailState" class="hidden bg-white rounded-xl shadow-lg p-6">
+        <!-- Details injected via JS -->
+    </div>
+
+    <!-- Initial State / Promotions Mockup -->
+    <div id="welcomeState" class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <!-- Card 1 -->
+        <div
+            class="bg-white border border-gray-100 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 p-6 group cursor-pointer">
+            <div class="h-40 bg-gray-200 rounded-lg mb-4 overflow-hidden relative">
+                <img src="https://images.unsplash.com/photo-1502602898657-3e91760cbb34?q=80&w=1746&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
+                    class="w-full h-full object-cover transition transform group-hover:scale-110 duration-500"
+                    alt="Paris">
+                <div class="absolute top-2 left-2 bg-brand-gold text-white text-xs font-bold px-2 py-1 rounded">Oferta
+                </div>
+            </div>
+            <h3 class="font-serif font-bold text-xl text-gray-800 mb-1">Paris, França</h3>
+            <p class="text-sm text-gray-500 mb-3">Partindo de São Paulo</p>
+            <div class="flex justify-between items-center">
+                <span class="text-xs text-gray-400">Ida e volta</span>
+                <span class="text-brand-red font-bold text-lg">R$ 3.850<small
+                        class="text-xs text-gray-400">,00</small></span>
+            </div>
+        </div>
+
+        <!-- Card 2 -->
+        <div
+            class="bg-white border border-gray-100 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 p-6 group cursor-pointer">
+            <div class="h-40 bg-gray-200 rounded-lg mb-4 overflow-hidden relative">
+                <img src="https://images.unsplash.com/photo-1522083165195-3424ed129620?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
+                    class="w-full h-full object-cover transition transform group-hover:scale-110 duration-500"
+                    alt="New York">
+            </div>
+            <h3 class="font-serif font-bold text-xl text-gray-800 mb-1">Nova York, EUA</h3>
+            <p class="text-sm text-gray-500 mb-3">Partindo de Rio de Janeiro</p>
+            <div class="flex justify-between items-center">
+                <span class="text-xs text-gray-400">Ida e volta</span>
+                <span class="text-brand-red font-bold text-lg">R$ 2.990<small
+                        class="text-xs text-gray-400">,00</small></span>
+            </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div
+            class="bg-white border border-gray-100 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 p-6 group cursor-pointer">
+            <div class="h-40 bg-gray-200 rounded-lg mb-4 overflow-hidden relative">
+                <img src="https://images.unsplash.com/photo-1512453979798-5ea266f8880c?q=80&w=1740&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
+                    class="w-full h-full object-cover transition transform group-hover:scale-110 duration-500"
+                    alt="Dubai">
+                <div class="absolute top-2 left-2 bg-brand-navy text-white text-xs font-bold px-2 py-1 rounded">Premium
+                </div>
+            </div>
+            <h3 class="font-serif font-bold text-xl text-gray-800 mb-1">Dubai, EAU</h3>
+            <p class="text-sm text-gray-500 mb-3">Partindo de São Paulo</p>
+            <div class="flex justify-between items-center">
+                <span class="text-xs text-gray-400">Ida e volta</span>
+                <span class="text-brand-red font-bold text-lg">R$ 5.420<small
+                        class="text-xs text-gray-400">,00</small></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    // --- Helper Functions ---
+    const getCookie = (name) => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+    };
+
+    // --- UI Logic ---
+
+    // Default Date -> Today
+    document.getElementById('startDate').value = new Date().toISOString().split('T')[0];
+
+    // Round Trip Toggle
+    document.getElementById('isRoundTrip').addEventListener('change', (e) => {
+        const returnDiv = document.getElementById('returnDateDiv');
+        // Toggle formatting classes if needed to keep layout standard
+        // For simplified Grid layout:
+        if (e.target.checked) {
+            returnDiv.classList.remove('hidden');
+        } else {
+            returnDiv.classList.add('hidden');
+        }
+    });
+
+    // --- Autocomplete ---
+    document.querySelectorAll('.autocomplete-location').forEach(input => {
+        const resultsDiv = input.parentElement.querySelector('.autocomplete-results');
+        let selectedIndex = -1;
+
+        const updateSelection = (items) => {
+            items.forEach((item, idx) => {
+                if (idx === selectedIndex) {
+                    item.classList.add('selected');
+                    item.scrollIntoView({ block: 'nearest' });
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        };
+
+        input.addEventListener('keydown', (e) => {
+            const items = resultsDiv.querySelectorAll('.autocomplete-item');
+            if (e.key === 'ArrowDown') {
+                selectedIndex = (selectedIndex + 1) % items.length;
+                updateSelection(items);
+                e.preventDefault();
+            } else if (e.key === 'ArrowUp') {
+                selectedIndex = (selectedIndex - 1 + items.length) % items.length;
+                updateSelection(items);
+                e.preventDefault();
+            } else if (e.key === 'Enter' && selectedIndex >= 0) {
+                items[selectedIndex].click();
+                e.preventDefault();
+            } else if (e.key === 'Escape') {
+                resultsDiv.style.display = 'none';
+            }
+        });
+
+        input.addEventListener('input', async (e) => {
+            const query = e.target.value.trim();
+            selectedIndex = -1;
+
+            if (query.length < 2) {
+                resultsDiv.style.display = 'none';
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/locations/search?q=${encodeURIComponent(query)}`, {
+                    headers: { 'Authorization': 'Bearer ' + getCookie('access_token') }
+                });
+
+                if (!res.ok) return;
+                const data = await res.json();
+
+                if (data.length === 0) {
+                    resultsDiv.innerHTML = '<div class="px-4 py-3 text-gray-400 text-sm">Nenhum resultado</div>';
+                } else {
+                    resultsDiv.innerHTML = data.map(loc => `
+                        <div class="autocomplete-item px-4 py-3 cursor-pointer hover:bg-gray-50 transition" data-value="${loc.name}">
+                            <div class="font-bold text-gray-800">${loc.name}</div>
+                            <div class="text-xs text-gray-500">${loc.iata} • ${loc.country}</div>
+                        </div>
+                    `).join('');
+
+                    resultsDiv.querySelectorAll('.autocomplete-item').forEach(item => {
+                        item.addEventListener('click', () => {
+                            const val = item.dataset.value;
+                            // Handle multiple cities logic if needed, simple replacement for now as per airline standard
+                            input.value = val;
+                            resultsDiv.style.display = 'none';
+                        });
+                    });
+                }
+                resultsDiv.style.display = 'block';
+
+            } catch (err) {
+                console.error(err);
+            }
+        });
+
+        // Click outside closes
+        document.addEventListener('click', (e) => {
+            if (!input.contains(e.target) && !resultsDiv.contains(e.target)) {
+                resultsDiv.style.display = 'none';
+            }
+        });
+    });
+
+    // --- Search Submission ---
+    document.getElementById('searchForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const welcome = document.getElementById('welcomeState');
+        const results = document.getElementById('resultsContainer');
+        const detail = document.getElementById('detailState');
+        const loader = document.getElementById('loadingSpinner');
+        const btn = document.getElementById('optimizeBtn');
+        const originalBtnText = btn.innerHTML;
+
+        welcome.classList.add('hidden');
+        results.classList.add('hidden');
+        detail.classList.add('hidden');
+        loader.classList.remove('hidden');
+
+        btn.disabled = true;
+        btn.innerHTML = 'Buscando...'; // Simple status
+
+        // Prepare Payload
+        const fd = new FormData(e.target);
+        const sliderVal = parseInt(document.getElementById('prioritySlider').value);
+
+        const payload = {
+            origin_cities: fd.get('origin_cities').split(',').map(s => s.trim()).filter(s => s),
+            destination_cities: fd.get('destination_cities').split(',').map(s => s.trim()).filter(s => s),
+            mandatory_cities: fd.get('mandatory_cities') ? fd.get('mandatory_cities').split(',').map(s => s.trim()) : [],
+            start_date: new Date(fd.get('start_date')).toISOString(),
+            provider: fd.get('provider'),
+            pax_adults: parseInt(fd.get('pax_adults')),
+            pax_children: parseInt(fd.get('pax_children')),
+            weight_cost: (100 - sliderVal) / 100,
+            weight_time: sliderVal / 100
+        };
+
+        if (fd.get('return_date')) {
+            payload.return_date = new Date(fd.get('return_date')).toISOString();
+        }
+
+        try {
+            const res = await fetch('/api/solve', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + getCookie('access_token')
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) throw new Error("API failed");
+            const data = await res.json();
+
+            renderResults(data);
+            results.classList.remove('hidden');
+
+        } catch (err) {
+            console.error(err);
+            alert("Erro ao buscar viagens. Tente novamente.");
+            welcome.classList.remove('hidden');
+        } finally {
+            loader.classList.add('hidden');
+            btn.disabled = false;
+            btn.innerHTML = originalBtnText;
+        }
+    });
+
+    // --- Rendering Logic (Re-implemented for new styling) ---
+    function renderResults(data) {
+        const container = document.getElementById('resultsContainer');
+        container.innerHTML = '';
+
+        // Debug log for QA
+        console.log("renderResults received:", data);
+
+        // 1. Status / Header - Show warning if not optimal
+        if (data.status !== 'Optimal') {
+            container.innerHTML = `
+                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r shadow-sm mb-6">
+                    <div class="flex">
+                        <div class="flex-shrink-0"><span class="text-yellow-400 text-xl">⚠️</span></div>
+                        <div class="ml-3">
+                            <p class="text-sm text-yellow-700 font-bold">Status: ${data.status}</p>
+                            <p class="text-sm text-yellow-700 mt-1">Não foi possível encontrar um roteiro perfeito com os critérios informados.</p>
+                             ${data.warning_message ? `<p class="text-xs text-yellow-600 mt-2">${data.warning_message}</p>` : ''}
+                        </div>
+                    </div>
+                </div>
+             `;
+        }
+
+        // 2. If itinerary is empty, check for partial results
+        const hasAlternatives = data.alternatives && Object.keys(data.alternatives).length > 0;
+        const hasCars = data.cars_found && data.cars_found.length > 0;
+        const hasHotels = data.hotels_found && data.hotels_found.length > 0;
+        const hasPartialResults = hasAlternatives || hasCars || hasHotels;
+
+        if (!data.itinerary || data.itinerary.length === 0) {
+            if (hasPartialResults) {
+                container.innerHTML += `
+                    <div class="bg-white rounded-xl shadow border border-gray-100 p-8 text-center mb-8">
+                        <div class="text-5xl mb-4">🔍</div>
+                        <h2 class="text-2xl font-serif font-bold text-gray-700 mb-2">Roteiro Completo Indisponível</h2>
+                        <p class="text-gray-500 max-w-lg mx-auto">Não conseguimos montar um itinerário perfeito de ponta a ponta com os critérios selecionados, mas encontramos as seguintes opções abaixo que podem ajudar na sua viagem.</p>
+                    </div>
+                `;
+            } else {
+                container.innerHTML += `
+                    <div class="bg-white rounded-xl shadow border border-gray-100 p-8 text-center">
+                        <div class="text-5xl mb-4">🛫</div>
+                        <h2 class="text-2xl font-serif font-bold text-gray-500 mb-2">Nenhuma Opção Encontrada</h2>
+                        <p class="text-gray-400 max-w-md mx-auto">Não encontramos voos, hotéis ou veículos que atendam à sua pesquisa. Tente alterar as datas ou cidades.</p>
+                    </div>
+                `;
+            }
+        } else {
+            // 2b. Summary Card - Only show if we HAVE an itinerary
+            const flightCost = data.cost_breakdown?.flight || 0;
+            const carCost = data.cost_breakdown?.car || 0;
+
+            const summaryHtml = `
+                <div class="bg-white rounded-xl shadow border border-gray-100 p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div>
+                        <h2 class="text-2xl font-serif font-bold text-brand-navy">Melhor Opção Encontrada</h2>
+                        <p class="text-gray-500 text-sm">Tempo Total: <strong class="text-gray-800">${(data.total_duration / 60).toFixed(1)}h</strong> • ${data.itinerary.length} Trechos</p>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-3xl font-bold text-brand-red">R$ ${data.total_cost.toFixed(2)}</div>
+                         ${carCost > 0 ? `<p class="text-xs text-gray-400">Inclui Voo + Carro</p>` : ''}
+                    </div>
+                </div>
+            `;
+            container.innerHTML += summaryHtml;
+
+            // 3. Itinerary List (Airline Cards Style)
+            let itineraryHtml = '<div class="space-y-4">';
+
+            data.itinerary.forEach((leg, idx) => {
+                const flight = leg.flight || {};
+                const isCar = flight.airline && (flight.airline.includes('Carro') || flight.airline.includes('Aluguel'));
+                const cardIcon = isCar ? '🚗' : '✈️';
+
+                // Times
+                const depTime = flight.departure_time ? new Date(flight.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+                const arrTime = flight.arrival_time ? new Date(flight.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+
+                itineraryHtml += `
+                <div class="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition p-5 flex flex-col md:flex-row items-center gap-6">
+                    <!-- Left: Carrier Info -->
+                    <div class="md:w-1/4 flex flex-col items-start border-r border-gray-100 pr-4">
+                         <div class="flex items-center gap-2 mb-1">
+                            <span class="text-2xl">${cardIcon}</span>
+                            <span class="font-bold text-gray-800">${flight.airline || 'Operador'}</span>
+                         </div>
+                         <span class="text-xs text-gray-500 uppercase tracking-wide">Trecho ${idx + 1}</span>
+                         ${!isCar && flight.flight_number ? `<span class="text-xs text-gray-400">Voo ${flight.flight_number}</span>` : ''}
+                    </div>
+                    
+                    <!-- Middle: Route & Times -->
+                    <div class="flex-1 flex items-center justify-between w-full md:w-auto px-2">
+                        <div class="text-center">
+                            <div class="text-2xl font-light text-gray-800">${depTime}</div>
+                            <div class="text-sm font-bold text-gray-600">${leg.origin}</div>
+                        </div>
+                        
+                        <div class="flex-1 px-4 flex flex-col items-center">
+                            <span class="text-xs text-gray-400 mb-1">${leg.duration} min</span>
+                            <div class="w-full h-px bg-gray-300 relative">
+                                <div class="absolute -top-1 right-0 w-2 h-2 rounded-full bg-gray-300"></div>
+                            </div>
+                            <span class="text-xs text-green-600 mt-1 font-medium">${isCar ? 'Terrestre' : 'Direto'}</span>
+                        </div>
+                        
+                        <div class="text-center">
+                            <div class="text-2xl font-light text-gray-800">${arrTime}</div>
+                            <div class="text-sm font-bold text-gray-600">${leg.destination}</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Right: Price & Action -->
+                    <div class="md:w-1/4 flex flex-col items-end border-l border-gray-100 pl-4">
+                        <span class="text-xl font-bold text-gray-800">R$ ${leg.price.toFixed(2)}</span>
+                        
+                        ${flight.deep_link ?
+                        `<a href="${flight.deep_link}" target="_blank" class="mt-2 bg-brand-navy text-white text-sm font-medium py-2 px-6 rounded-full hover:bg-blue-900 transition shadow">
+                                ${isCar ? 'Alugar' : 'Selecionar'}
+                             </a>`
+                        : '<button disabled class="mt-2 bg-gray-200 text-gray-400 text-sm font-medium py-2 px-6 rounded-full cursor-not-allowed">Indisponível</button>'
+                    }
+                    </div>
+                </div>
+            `;
+            });
+            itineraryHtml += '</div>';
+
+            container.innerHTML += itineraryHtml;
+        }  // <-- Close the else block here
+
+        // 4. Alternatives Fallback - Show always (even if no itinerary)
+        if (data.alternatives && Object.keys(data.alternatives).length > 0) {
+            container.innerHTML += `
+            <div class="mt-8">
+                <h3 class="text-lg font-bold text-gray-800 mb-4">Outras Opções de Voo</h3>
+                <div id="resultsAlternatives"></div>
+            </div>
+        `;
+            // Call render helper
+            renderAlternatives(data.alternatives, 'resultsAlternatives');
+        }
+
+        // 5. Cars Fallback (Show always if available)
+        if (data.cars_found && data.cars_found.length > 0) {
+            const isCarBetter = !data.itinerary || data.itinerary.length === 0;
+
+            let carHeaderHtml = '';
+            if (isCarBetter) {
+                carHeaderHtml = `
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r shadow-sm mb-6">
+                    <div class="flex">
+                        <div class="flex-shrink-0"><span class="text-blue-500 text-xl">🚗</span></div>
+                        <div class="ml-3">
+                            <p class="text-lg text-blue-800 font-bold">Recomendação de Transporte</p>
+                            <p class="text-sm text-blue-700 mt-1">Para este trajeto, identificamos que a opção mais viável é o transporte terrestre (Carro Alugado).</p>
+                        </div>
+                    </div>
+                </div>
+                <h3 class="text-lg font-bold text-gray-800 mb-4">Opções de Veículos</h3>
+            `;
+            } else {
+                carHeaderHtml = `<h3 class="text-lg font-bold text-gray-800 mb-4">Complemente sua viagem com um Carro</h3>`;
+            }
+
+            container.innerHTML += `
+            <div class="mt-8">
+                ${carHeaderHtml}
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    ${data.cars_found.slice(0, 6).map(car => {
+                const model = (car.model && car.model !== 'Unknown') ? car.model : 'Veículo Econômico';
+                const price = car.price_per_day > 0 ? `R$ ${car.price_per_day.toFixed(2)}` : 'Sob Consulta';
+
+                return `
+                         <div class="bg-white rounded border border-gray-200 p-4 shadow-sm hover:shadow-md transition">
+                            <div class="flex justify-between items-start mb-2">
+                                 <h4 class="font-bold text-brand-navy text-lg">${model}</h4>
+                                 <span class="bg-gray-100 text-gray-500 text-xs px-2 py-1 rounded">Diária</span>
+                            </div>
+                            <p class="text-sm text-gray-500 mb-4">Retirada em: <span class="font-semibold">${car.city}</span></p>
+                            <div class="flex justify-between items-end border-t border-gray-100 pt-3">
+                                <div>
+                                     <span class="block text-xs text-gray-400">A partir de</span>
+                                     <span class="font-bold text-gray-800 text-lg">${price}</span>
+                                </div>
+                                <a href="${car.deep_link || '#'}" target="_blank" class="bg-brand-navy text-white text-xs font-bold py-2 px-4 rounded hover:bg-blue-900 transition">RESERVAR</a>
+                            </div>
+                         </div>
+                    `}).join('')}
+                </div>
+            </div>
+          `;
+        }
+
+        // 6. Hotels Fallback
+        if (data.hotels_found && data.hotels_found.length > 0) {
+            container.innerHTML += `
+            <div class="mt-8">
+                <h3 class="text-lg font-bold text-gray-800 mb-4">Sugestões de Hospedagem</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    ${data.hotels_found.slice(0, 6).map(h => `
+                         <div class="bg-white rounded border border-gray-200 p-4 shadow-sm hover:shadow-md transition">
+                            <h4 class="font-bold text-brand-navy truncate" title="${h.name}">${h.name}</h4>
+                            <p class="text-sm text-gray-500">${h.stars || '3'} Estrelas</p>
+                            <div class="mt-3 flex justify-between items-center">
+                                <span class="font-bold text-gray-800">R$ ${h.price_per_night || h.price_total}</span>
+                                <span class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Recomendado</span>
+                            </div>
+                         </div>
+                    `).join('')}
+                </div>
+            </div>
+         `;
+        }
+    } // <-- Close renderResults function
+
+    // --- Helper Components & Logic ---
+
+    // Map Initialization
+    function initMap(segments, elementId = 'detailMap') {
+        const container = document.getElementById(elementId);
+        if (!container) return;
+
+        if (window.currentMap && window.currentMap.containerId === elementId) {
+            window.currentMap.remove();
+        }
+
+        const map = L.map(elementId);
+        window.currentMap = map;
+        window.currentMap.containerId = elementId;
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO'
+        }).addTo(map);
+
+        const bounds = [];
+        segments.forEach(seg => {
+            if (seg.from && seg.to) {
+                const line = [[seg.from.lat, seg.from.lon], [seg.to.lat, seg.to.lon]];
+                L.polyline(line, { color: '#1B0088', weight: 3, opacity: 0.7, dashArray: '10, 10' }).addTo(map);
+                L.circleMarker(line[0], { radius: 5, color: '#E8114B', fillOpacity: 1 }).addTo(map).bindPopup(`<b>${seg.from_name}</b>`);
+                L.circleMarker(line[1], { radius: 5, color: '#1B0088', fillOpacity: 1 }).addTo(map).bindPopup(`<b>${seg.to_name}</b>`);
+                bounds.push(line[0], line[1]);
+            }
+        });
+
+        if (bounds.length > 0) {
+            map.fitBounds(bounds, { padding: [50, 50] });
+        }
+    }
+
+    // Alternatives Renderer
+    function renderAlternatives(alternatives, containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        let html = '<div class="space-y-4">';
+        Object.keys(alternatives).forEach(key => {
+            const flights = alternatives[key];
+            const [org, dst] = key.split('-');
+
+            html += `
+            <div class="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                <button class="w-full text-left px-4 py-3 border-b border-gray-200 font-bold text-gray-700 flex justify-between items-center hover:bg-gray-50 focus:outline-none" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                    <span>${org} ➝ ${dst}</span>
+                    <div class="flex items-center gap-2">
+                         <span class="text-xs bg-gray-100 border border-gray-300 px-2 py-1 rounded text-gray-500">${flights.length} Opções</span>
+                         <span class="text-xs">▼</span>
+                    </div>
+                </button>
+                <div class="hidden divide-y divide-gray-100 max-h-60 overflow-y-auto">
+         `;
+
+            flights.forEach(f => {
+                const price = (typeof f.price === 'number') ? f.price.toFixed(2) : f.price;
+                html += `
+                <div class="px-4 py-3 flex justify-between items-center hover:bg-slate-50 transition">
+                    <div>
+                        <div class="font-bold text-sm text-brand-navy">${f.airline}</div>
+                        <div class="text-xs text-gray-500">R$ ${price}</div>
+                    </div>
+                    <a href="${f.deep_link || '#'}" target="_blank" class="text-xs font-bold text-brand-red uppercase tracking-wide hover:underline">Ver</a>
+                </div>
+             `;
+            });
+            html += `</div></div>`;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    // History / Detail Loader (Placeholder)
+    async function loadDetailInline(searchId) {
+        console.log("Loading detail for", searchId);
+    }
+
+</script>
+{% endblock %}

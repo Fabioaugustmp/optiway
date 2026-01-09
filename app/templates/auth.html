@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entrar - Viagem Otimizada</title>
+
+    <!-- Tailwind CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'brand-navy': '#1B0088',
+                        'brand-red': '#E8114B',
+                        'brand-gold': '#D4AF37',
+                    },
+                    fontFamily: {
+                        'serif': ['"Playfair Display"', 'serif'],
+                        'sans': ['"Open Sans"', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&family=Playfair+Display:wght@700&display=swap"
+        rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Open Sans', sans-serif;
+        }
+
+        h1,
+        h2,
+        h3 {
+            font-family: 'Playfair Display', serif;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen bg-gray-100">
+
+    <!-- Full Page Split Layout -->
+    <div class="flex min-h-screen">
+
+        <!-- Left: Image/Brand Panel -->
+        <div class="hidden lg:flex lg:w-1/2 relative items-center justify-center"
+            style="background: linear-gradient(rgba(27, 0, 136, 0.75), rgba(27, 0, 136, 0.9)), url('https://images.unsplash.com/photo-1436491865332-7a61a109cc05?ixlib=rb-4.0.3&auto=format&fit=crop&w=2074&q=80'); background-size: cover; background-position: center;">
+            <div class="text-center px-12">
+                <div class="text-white text-5xl mb-4">✈️</div>
+                <h1 class="text-4xl font-serif text-white font-bold mb-4">Viagem Otimizada</h1>
+                <p class="text-blue-100 text-lg max-w-md mx-auto">Encontre a melhor rota, com o melhor custo-benefício.
+                    Planeje sua próxima aventura conosco.</p>
+
+                <div class="mt-12 flex justify-center gap-6">
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-white">500+</div>
+                        <div class="text-sm text-blue-200">Destinos</div>
+                    </div>
+                    <div class="border-l border-blue-400 opacity-50"></div>
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-white">24/7</div>
+                        <div class="text-sm text-blue-200">Suporte</div>
+                    </div>
+                    <div class="border-l border-blue-400 opacity-50"></div>
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-white">98%</div>
+                        <div class="text-sm text-blue-200">Satisfação</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Form Panel -->
+        <div class="w-full lg:w-1/2 flex items-center justify-center p-8 sm:p-12 bg-white">
+            <div class="w-full max-w-md">
+
+                <!-- Logo for Mobile -->
+                <div class="lg:hidden text-center mb-8">
+                    <span class="text-4xl">✈️</span>
+                    <h1 class="text-2xl font-serif font-bold text-brand-navy mt-2">Viagem Otimizada</h1>
+                </div>
+
+                <!-- Tabs -->
+                <div class="flex border-b border-gray-200 mb-8">
+                    <button id="loginTabBtn"
+                        class="flex-1 py-3 text-center font-bold text-brand-navy border-b-2 border-brand-navy transition"
+                        onclick="switchTab('login')">
+                        Entrar
+                    </button>
+                    <button id="registerTabBtn"
+                        class="flex-1 py-3 text-center font-medium text-gray-500 border-b-2 border-transparent hover:text-gray-700 transition"
+                        onclick="switchTab('register')">
+                        Criar Conta
+                    </button>
+                </div>
+
+                <!-- Alert Box -->
+                <div id="alertBox" class="mb-4"></div>
+
+                <!-- Login Form -->
+                <form id="loginForm" class="space-y-5">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Email</label>
+                        <input type="email" name="username" required
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-navy focus:border-brand-navy transition outline-none"
+                            placeholder="seu@email.com">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Senha</label>
+                        <input type="password" name="password" required
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-navy focus:border-brand-navy transition outline-none"
+                            placeholder="••••••••">
+                    </div>
+                    <div class="flex items-center justify-between text-sm">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" class="w-4 h-4 text-brand-navy rounded">
+                            <span class="text-gray-600">Lembrar de mim</span>
+                        </label>
+                        <a href="#" class="text-brand-navy font-semibold hover:underline">Esqueceu a senha?</a>
+                    </div>
+                    <button type="submit"
+                        class="w-full bg-brand-red text-white font-bold py-3 rounded-lg shadow-lg hover:shadow-xl hover:bg-red-700 transition duration-300 transform hover:-translate-y-0.5 uppercase tracking-wide text-sm">
+                        Entrar
+                    </button>
+                </form>
+
+                <!-- Register Form (Hidden by Default) -->
+                <form id="registerForm" class="space-y-5 hidden">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Nome Completo</label>
+                        <input type="text" id="regName" required
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-navy focus:border-brand-navy transition outline-none"
+                            placeholder="João da Silva">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Email</label>
+                        <input type="email" id="regEmail" required
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-navy focus:border-brand-navy transition outline-none"
+                            placeholder="seu@email.com">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Senha</label>
+                        <input type="password" id="regPass" required
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-navy focus:border-brand-navy transition outline-none"
+                            placeholder="Mínimo 8 caracteres">
+                    </div>
+                    <button type="submit"
+                        class="w-full bg-brand-navy text-white font-bold py-3 rounded-lg shadow-lg hover:shadow-xl hover:bg-blue-900 transition duration-300 transform hover:-translate-y-0.5 uppercase tracking-wide text-sm">
+                        Criar Minha Conta
+                    </button>
+                </form>
+
+                <!-- Divider -->
+                <!-- <div class="my-8 flex items-center">
+                    <div class="flex-1 border-t border-gray-200"></div>
+                    <span class="px-4 text-xs text-gray-400 uppercase">Ou continue com</span>
+                    <div class="flex-1 border-t border-gray-200"></div>
+                </div> -->
+
+                <!-- Social Buttons (Visual Only) -->
+                <!-- <div class="flex gap-4">
+                    <button type="button"
+                        class="flex-1 flex items-center justify-center gap-2 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm font-medium text-gray-600">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24">
+                            <path fill="currentColor"
+                                d="M21.35 11.1h-9.18v2.73h5.33c-.24 1.36-1.46 3.93-5.33 3.93-3.21 0-5.83-2.66-5.83-5.94s2.62-5.94 5.83-5.94c1.83 0 3.05.78 3.75 1.45l2.55-2.46C16.56 3.12 14.48 2.18 12.17 2.18c-5.04 0-9.13 4.09-9.13 9.13s4.09 9.13 9.13 9.13c5.27 0 8.77-3.71 8.77-8.93 0-.6-.07-1.06-.15-1.51z" />
+                        </svg>
+                        Google
+                    </button>
+                    <button type="button"
+                        class="flex-1 flex items-center justify-center gap-2 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm font-medium text-gray-600">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path
+                                d="M12 2C6.477 2 2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.989C18.343 21.129 22 16.99 22 12c0-5.523-4.477-10-10-10z" />
+                        </svg>
+                        Facebook
+                    </button>
+                </div> -->
+
+                <p class="mt-8 text-center text-xs text-gray-400">
+                    Ao continuar, você concorda com nossos <a href="#" class="text-brand-navy hover:underline">Termos de
+                        Uso</a> e <a href="#" class="text-brand-navy hover:underline">Política de Privacidade</a>.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tab Switching
+        function switchTab(tab) {
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+            const loginBtn = document.getElementById('loginTabBtn');
+            const registerBtn = document.getElementById('registerTabBtn');
+
+            if (tab === 'login') {
+                loginForm.classList.remove('hidden');
+                registerForm.classList.add('hidden');
+                loginBtn.classList.add('text-brand-navy', 'border-brand-navy', 'font-bold');
+                loginBtn.classList.remove('text-gray-500', 'border-transparent');
+                registerBtn.classList.remove('text-brand-navy', 'border-brand-navy', 'font-bold');
+                registerBtn.classList.add('text-gray-500', 'border-transparent');
+            } else {
+                loginForm.classList.add('hidden');
+                registerForm.classList.remove('hidden');
+                registerBtn.classList.add('text-brand-navy', 'border-brand-navy', 'font-bold');
+                registerBtn.classList.remove('text-gray-500', 'border-transparent');
+                loginBtn.classList.remove('text-brand-navy', 'border-brand-navy', 'font-bold');
+                loginBtn.classList.add('text-gray-500', 'border-transparent');
+            }
+        }
+
+        // Login Handler
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+
+            try {
+                const res = await fetch('/auth/login', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toUTCString();
+                    document.cookie = `access_token=${data.access_token}; expires=${expires}; path=/`;
+                    window.location.href = '/';
+                } else {
+                    showAlert('error', 'Login falhou. Verifique suas credenciais.');
+                }
+            } catch (err) {
+                showAlert('error', 'Erro de conexão com o servidor.');
+            }
+        });
+
+        // Register Handler
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('regName').value;
+            const email = document.getElementById('regEmail').value;
+            const password = document.getElementById('regPass').value;
+
+            try {
+                const res = await fetch('/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password, full_name: name })
+                });
+
+                if (res.ok) {
+                    showAlert('success', 'Conta criada com sucesso! Faça o login.');
+                    switchTab('login');
+                } else {
+                    const data = await res.json();
+                    showAlert('error', data.detail || 'Erro ao registrar.');
+                }
+            } catch (err) {
+                showAlert('error', 'Erro de conexão com o servidor.');
+            }
+        });
+
+        function showAlert(type, msg) {
+            const colors = {
+                success: 'bg-green-100 border-green-500 text-green-700',
+                error: 'bg-red-100 border-red-500 text-red-700'
+            };
+            document.getElementById('alertBox').innerHTML = `
+                <div class="border-l-4 p-4 rounded ${colors[type]}" role="alert">
+                    <p class="font-medium">${msg}</p>
+                </div>
+            `;
+        }
+    </script>
+</body>
+
+</html>

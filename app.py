@@ -52,10 +52,27 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("Provedor de Voos")
 provider = st.sidebar.selectbox("Escolha o Provedor", ["Google Flights (Scraper)", "Amadeus API", "Mock Data"])
 
+# Scraper/Crawler Selection
+st.sidebar.subheader("🔍 Seletor de Scrapers")
+available_scrapers = ["google_flights", "kayak", "latam", "azul", "gol"]
+selected_scrapers = st.sidebar.multiselect(
+    "Selecionar Scrapers para Crawling",
+    available_scrapers,
+    default=["google_flights", "kayak"]
+)
+
 # Load env vars
 import os
 from dotenv import load_dotenv
 load_dotenv()
+
+# Import flight crawler bridge
+try:
+    from app.services.flight_crawler_bridge import get_crawler_bridge
+    CRAWLER_BRIDGE_AVAILABLE = True
+except ImportError:
+    CRAWLER_BRIDGE_AVAILABLE = False
+    st.warning("⚠️ Flight Crawler Bridge não disponível. Usando modo compatibilidade.")
 
 amadeus_key = os.getenv("AMADEUS_API_KEY", "")
 amadeus_secret = os.getenv("AMADEUS_API_SECRET", "")
@@ -143,6 +160,60 @@ if st.button("🚀 Calcular Melhor Roteiro", type="primary"):
         hotels = crawler.fetch_hotels(todas_cidades)
         cars = crawler.fetch_car_rentals(todas_cidades)
         
+        # Use new flight crawler bridge if available
+        flights = []
+        if CRAWLER_BRIDGE_AVAILABLE and selected_scrapers:
+            try:
+                bridge = get_crawler_bridge()
+                status.write(f"🔗 Usando Flight Crawler Bridge com {len(selected_scrapers)} scrapers...")
+                flights = bridge.crawl_flights(
+                    origin=origens[0] if origens else "São Paulo",
+                    destinations=destinos,
+                    departure_date=datetime.combine(data_inicio, datetime.min.time()),
+                    scrapers=selected_scrapers,
+                    passengers=pax_adultos + pax_criancas,
+                    return_date=datetime.combine(data_fim, datetime.min.time()) if data_fim else None
+                )
+                status.write(f"✅ Flight Crawler: {len(flights)} voos encontrados")
+            except Exception as e:
+                st.warning(f"⚠️ Erro com Flight Crawler: {e}. Usando fallback...")
+                flights = []
+        
+        # Fallback para sistema antigo se bridge não disponível ou sem voos
+        if not flights:
+            if provider == "Google Flights (Scraper)":
+                crawler = GoogleFlightsCrawler(headless=True)
+            elif provider == "Amadeus API":
+                if amadeus_key and amadeus_secret:
+                    clean_key = amadeus_key.strip()
+                    clean_secret = amadeus_secret.strip()
+                    print(f"Initializing Amadeus with Key ID starting: {clean_key[:6]}...") 
+                    print(f"Secret starting: {clean_secret[:4]}...")
+                    print(f"Environment: {'PRODUCTION' if use_prod else 'TEST'}")
+                    crawler = AmadeusCrawler(clean_key, clean_secret, production=use_prod)
+                else:
+                    st.warning("⚠️ Credenciais Amadeus não fornecidas. Usando Mock.")
+                    crawler = MockCrawler()
+            else:
+                crawler = MockCrawler()
+            
+            # Loop to fetch flights from EACH city to all others
+            for orig_city in todas_cidades:
+                try:
+                    dests = [c for c in todas_cidades if c != orig_city]
+                    if dests:
+                        new_flights = crawler.fetch_flights(orig_city, dests, datetime.combine(data_inicio, datetime.min.time()), adults=pax_adultos, children=pax_criancas)
+                        flights.extend(new_flights)
+                except Exception as e:
+                    print(f"Error fetching from {orig_city}: {e}")
+            
+            hotels = crawler.fetch_hotels(todas_cidades)
+            cars = crawler.fetch_car_rentals(todas_cidades)
+        else:
+            # Mock hotels and cars for now
+            hotels = []
+            cars = []
+        
         status.write(f"✅ Encontrados {len(flights)} voos e {len(hotels)} hotéis.")
         
         # DEBUG: Save to CSV
@@ -164,7 +235,10 @@ if st.button("🚀 Calcular Melhor Roteiro", type="primary"):
             start_date=datetime.combine(data_inicio, datetime.min.time()),
             weight_cost=peso_custo,
             weight_time=peso_tempo,
-            allow_open_jaw=allow_open_jaw
+            allow_open_jaw=allow_open_jaw,
+            is_round_trip=not allow_open_jaw,
+            stay_days_per_city=dias_por_cidade,
+            daily_cost_per_person=custo_diario
         )
         
         result = solve_itinerary(req, flights, hotels, cars)

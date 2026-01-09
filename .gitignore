@@ -1,5 +1,11 @@
+__pycache__/
+*.pyc
+*.db
 .env
-data/__pycache__/*
-data/__pycache__/crawler.cpython-314.pyc
-/data/__pycache__
-/optimization
+.venv/
+venv/
+.DS_Store
+*.egg-info/
+flights_captured.csv
+flights_captured-1.csv
+tests/__pycache__/

@@ -1,0 +1,34 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: optiway-api
+    ports:
+      - "8000:8000"
+    environment:
+      - SECRET_KEY=${SECRET_KEY}
+      - AMADEUS_API_KEY=${AMADEUS_API_KEY}
+      - AMADEUS_API_SECRET=${AMADEUS_API_SECRET}
+    volumes:
+      - app_data:/app/db
+
+  crawler:
+    build:
+      context: .
+      dockerfile: flight_crawler/Dockerfile
+    container_name: optiway-crawler
+    ports:
+      - "8001:8001"
+
+  solver:
+    build:
+      context: .
+      dockerfile: solver_service/Dockerfile
+    container_name: optiway-solver
+    ports:
+      - "8002:8002"
+
+volumes:
+  app_data:
+    driver: local

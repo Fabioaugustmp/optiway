@@ -1,0 +1,383 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row">
+    <div class="col-12">
+      <div class="mb-3">
+        <a href="/" class="btn btn-secondary">← Voltar para Dashboard</a>
+      </div>
+      
+      <div id="itineraryDetail" class="mt-3">
+        <div class="text-center py-4">
+          <div class="spinner-border text-primary" role="status"></div>
+          <p class="text-muted mt-2">Carregando detalhes...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Load Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  function getCookie(name) {
+      let value = "; " + document.cookie;
+      let parts = value.split("; " + name + "=");
+      if (parts.length == 2) return parts.pop().split(";").shift();
+  }
+
+  (async function loadDetail() {
+    const id = {{ itinerary_id }};
+    const container = document.getElementById('itineraryDetail');
+    
+    try {
+      const res = await fetch(`/users/history/${id}`, {
+        headers: { 'Authorization': 'Bearer ' + getCookie('access_token'), 'Content-Type': 'application/json' }
+      });
+      
+      if (!res.ok) {
+        container.innerHTML = `<div class="alert alert-danger">Falha ao carregar detalhamento: ${res.status} ${res.statusText}</div>`;
+        return;
+      }
+      
+      const data = await res.json();
+      
+      if (!data || !data.itinerary) {
+        container.innerHTML = '<p class="text-muted">Nenhum detalhe disponível.</p>';
+        return;
+      }
+
+      // Check for Hybrid Route (Car segments)
+      let hasCar = false;
+      data.itinerary.forEach(leg => {
+        const flight = leg.flight || {};
+        if (flight.airline && (flight.airline.includes('Carro') || flight.airline.includes('Aluguel'))) {
+          hasCar = true;
+        }
+      });
+
+      // Hybrid Alert
+      let hybridAlert = '';
+      if (hasCar) {
+        hybridAlert = `<div class="alert alert-success mb-3">
+          <div class="d-flex align-items-center">
+            <span class="fs-4 me-2">🚗</span>
+            <div>
+              <strong>Roteiro Híbrido Detectado!</strong><br>
+              Como o destino não possui aeroporto próximo, incluímos um trecho terrestre recomendado.
+            </div>
+          </div>
+        </div>`;
+      }
+
+      // Summary Card
+      const flightCost = (data.cost_breakdown && data.cost_breakdown.flight) || 0;
+      const carCost = (data.cost_breakdown && data.cost_breakdown.car) || 0;
+
+      let html = `
+        ${hybridAlert}
+        <div class="card mb-4 border-success shadow-sm">
+          <div class="card-body">
+            <div class="row text-center align-items-center">
+              <div class="col-md-4">
+                <h3 class="text-success">R$ ${data.total_cost.toFixed(2)}</h3>
+                <small class="text-muted">Custo Total Estimado</small>
+                <div class="mt-2">
+                  <small class="d-block">✈️ Aéreo: R$ ${flightCost.toFixed(2)}</small>
+                  <small class="d-block">🚗 Carro: R$ ${carCost.toFixed(2)}</small>
+                </div>
+              </div>
+              <div class="col-md-4 border-start border-end">
+                <h3>${(data.total_duration / 60).toFixed(1)}h</h3>
+                <small class="text-muted">Tempo Total</small>
+              </div>
+              <div class="col-md-4">
+                ${hasCar ? '<span class="badge bg-success fs-6">🚗 Rota Híbrida</span>' : '<span class="badge bg-primary fs-6">✈️ Rota Aérea</span>'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <ul class="nav nav-tabs mb-3" id="detailTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="itinerary-tab" data-bs-toggle="tab" data-bs-target="#itinerary-content" type="button" role="tab">📅 Itinerário Final</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="alternatives-tab" data-bs-toggle="tab" data-bs-target="#alternatives-content" type="button" role="tab">🔍 Outras Opções Consultadas</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="hotels-tab" data-bs-toggle="tab" data-bs-target="#hotels-content" type="button" role="tab">🏨 Hotéis Encontrados</button>
+          </li>
+        </ul>
+
+        <div class="tab-content" id="detailTabContent">
+          <!-- Itinerary Tab -->
+          <div class="tab-pane fade show active" id="itinerary-content" role="tabpanel">
+            <div class="card shadow-sm mb-4">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Rota</th>
+                      <th>Cia Aérea</th>
+                      <th>Partida</th>
+                      <th>Chegada</th>
+                      <th>Duração</th>
+                      <th>Preço</th>
+                      <th>Detalhes</th>
+                    </tr>
+                  </thead>
+                  <tbody id="itineraryTableBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Alternatives Tab -->
+          <div class="tab-pane fade" id="alternatives-content" role="tabpanel">
+            <div id="alternativesContainer">
+              <p class="text-muted text-center p-3">Nenhuma alternativa disponível.</p>
+            </div>
+          </div>
+
+          <!-- Hotels Tab -->
+          <div class="tab-pane fade" id="hotels-content" role="tabpanel">
+            <div id="hotelsContainer">
+              <p class="text-muted text-center p-3">Nenhum hotel disponível.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Map Section -->
+        <div class="card shadow-sm mt-4">
+          <div class="card-header bg-white">
+            <h5 class="mb-0">🗺️ Visualização no Mapa</h5>
+          </div>
+          <div class="card-body p-0">
+            <div id="map" style="height: 450px; width: 100%;"></div>
+          </div>
+        </div>
+      `;
+
+      container.innerHTML = html;
+
+      // Populate Itinerary Table
+      const tbody = document.getElementById('itineraryTableBody');
+      const mapSegments = [];
+
+      const fmtTime = (isoStr) => {
+        if (!isoStr) return 'N/A';
+        const d = new Date(isoStr);
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) +
+          ` <small class="text-muted">${d.getDate()}/${d.getMonth() + 1}</small>`;
+      };
+
+      data.itinerary.forEach(leg => {
+        const flight = leg.flight || {};
+        const isCar = flight.airline && (flight.airline.includes('Carro') || flight.airline.includes('Aluguel'));
+        const rowClass = isCar ? 'table-success' : '';
+        const icon = isCar ? '🚗' : '✈️';
+        
+        let flightNumDisplay = '';
+        if (flight.flight_number && flight.flight_number !== 'N/A') {
+          flightNumDisplay = `<br><small class="text-muted">${flight.flight_number}</small>`;
+        }
+        const airlineDisplay = isCar ? `<strong>${flight.airline}</strong>` : (flight.airline || 'N/A') + flightNumDisplay;
+
+        const depTime = fmtTime(flight.departure_time);
+        const arrTime = fmtTime(flight.arrival_time);
+
+        const row = document.createElement('tr');
+        row.className = rowClass;
+        row.innerHTML = `
+          <td><strong>${leg.origin}</strong><br><small class="text-muted">➝ ${leg.destination}</small></td>
+          <td>${icon} ${airlineDisplay}</td>
+          <td>${depTime}</td>
+          <td>${arrTime}</td>
+          <td>${leg.duration} min</td>
+          <td>R$ ${leg.price.toFixed(2)}</td>
+          <td><span class="badge bg-secondary">${flight.stops || 0} paradas</span></td>
+        `;
+        tbody.appendChild(row);
+
+        // Collect map segments
+        if (leg.origin_coords && leg.dest_coords) {
+          mapSegments.push({
+            from_name: leg.origin,
+            to_name: leg.destination,
+            from: leg.origin_coords,
+            to: leg.dest_coords,
+            airline: flight.airline || 'N/A',
+            dep: depTime,
+            arr: arrTime
+          });
+        }
+      });
+
+      // Render Alternatives
+      renderAlternatives(data.alternatives);
+
+      // Render Hotels
+      renderHotels(data.hotels_found);
+
+      // Init Map
+      initMap(mapSegments);
+
+    } catch (e) {
+      console.error(e);
+      container.innerHTML = `<div class="alert alert-danger">Erro ao carregar detalhamento: ${e.message}</div>`;
+    }
+  })();
+
+  function renderAlternatives(alternatives) {
+    const container = document.getElementById('alternativesContainer');
+    
+    if (!alternatives || Object.keys(alternatives).length === 0) {
+      container.innerHTML = '<p class="text-muted text-center p-3">Nenhuma alternativa encontrada.</p>';
+      return;
+    }
+
+    let html = '<div class="accordion" id="accordionAlternatives">';
+
+    Object.keys(alternatives).forEach((key, index) => {
+      const flights = alternatives[key];
+      const collapseId = `collapse-${index}`;
+      const headingId = `heading-${index}`;
+      const [origin, dest] = key.split('-');
+
+      html += `
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="${headingId}">
+            <button class="accordion-button ${index === 0 ? '' : 'collapsed'}" type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}" aria-expanded="${index === 0}" aria-controls="${collapseId}">
+              ✈️ Opções: ${origin} ➝ ${dest} (${flights.length})
+            </button>
+          </h2>
+          <div id="${collapseId}" class="accordion-collapse collapse ${index === 0 ? 'show' : ''}" aria-labelledby="${headingId}" data-bs-parent="#accordionAlternatives">
+            <div class="accordion-body p-0">
+              <div class="table-responsive">
+                <table class="table table-striped table-hover mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Cia Aérea</th>
+                      <th>Voo</th>
+                      <th>Partida</th>
+                      <th>Chegada</th>
+                      <th>Duração</th>
+                      <th>Preço</th>
+                    </tr>
+                  </thead>
+                  <tbody>`;
+
+      flights.forEach(f => {
+        const dep = new Date(f.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const arr = new Date(f.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        html += `
+          <tr>
+            <td>${f.airline}</td>
+            <td>${f.flight_number || '-'}</td>
+            <td>${dep}</td>
+            <td>${arr}</td>
+            <td>${f.duration_minutes} min</td>
+            <td class="fw-bold">R$ ${f.price.toFixed(2)}</td>
+          </tr>`;
+      });
+
+      html += `
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    });
+
+    html += '</div>';
+    container.innerHTML = html;
+  }
+
+  function renderHotels(hotels) {
+    const container = document.getElementById('hotelsContainer');
+    
+    if (!hotels || hotels.length === 0) {
+      container.innerHTML = '<p class="text-muted text-center p-3">Nenhum hotel encontrado.</p>';
+      return;
+    }
+
+    let html = '<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">';
+    hotels.forEach(h => {
+      html += `
+        <div class="col">
+          <div class="card h-100 shadow-sm border-0">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start">
+                <h5 class="card-title text-primary">${h.name}</h5>
+                <span class="badge bg-success ms-2">⭐ ${h.rating}</span>
+              </div>
+              <h6 class="card-subtitle mb-2 text-muted">📍 ${h.city}</h6>
+              <hr>
+              <p class="card-text fs-4 fw-bold">R$ ${h.price_per_night.toFixed(2)} <span class="fs-6 text-muted fw-normal">/ noite</span></p>
+            </div>
+          </div>
+        </div>`;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+  }
+
+  function initMap(segments) {
+    if (typeof L === 'undefined') {
+      console.error('Leaflet não carregado');
+      return;
+    }
+    
+    if (!segments || segments.length === 0) {
+      document.getElementById('map').innerHTML = '<div class="text-center p-5 text-muted">Sem dados de mapa disponíveis</div>';
+      return;
+    }
+
+    const map = L.map('map');
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    const allPoints = [];
+
+    segments.forEach(seg => {
+      // Markers
+      L.marker(seg.from).addTo(map).bindPopup(`<b>${seg.from_name}</b>`);
+      L.marker(seg.to).addTo(map).bindPopup(`<b>${seg.to_name}</b>`);
+
+      // Path
+      const latlngs = [seg.from, seg.to];
+      const isCar = seg.airline && (seg.airline.includes("Carro") || seg.airline.includes("Aluguel"));
+
+      const polyOptions = {
+        color: isCar ? '#28a745' : '#dc3545',
+        weight: 4,
+        opacity: 0.7,
+        dashArray: isCar ? '10, 10' : null
+      };
+
+      const poly = L.polyline(latlngs, polyOptions).addTo(map);
+
+      let content = `<b>${seg.from_name} ➝ ${seg.to_name}</b><br>${seg.airline}`;
+      if (seg.dep && seg.arr) {
+        content += `<hr class="my-1">🛫 Partida: ${seg.dep}<br>🛬 Chegada: ${seg.arr}`;
+      }
+      poly.bindPopup(content);
+
+      allPoints.push(seg.from);
+      allPoints.push(seg.to);
+    });
+
+    if (allPoints.length > 0) {
+      map.fitBounds(allPoints, { padding: [50, 50] });
+    }
+  }
+</script>
+{% endblock %}
