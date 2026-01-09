@@ -338,7 +338,8 @@ class FlightCrawlerProxy(BaseCrawler):
                         city=h.get("city") or cities[0],
                         name=h.get("name", "Unknown Hotel"),
                         price_per_night=float(h.get("price_per_night", 0)),
-                        rating=float(h.get("rating", 3.0)) if h.get("rating") else 3.0
+                        rating=float(h.get("rating", 3.0)) if h.get("rating") else 3.0,
+                        stars=int(h.get("stars")) if h.get("stars") else 3
                     ))
             
             logger.info(f"Fetched {len(hotels)} hotels from flight_crawler")

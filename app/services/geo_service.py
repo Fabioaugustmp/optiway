@@ -77,14 +77,18 @@ def generate_ground_segments(
     """
     ground_segments = []
 
-    # Pre-process cars to map city -> cheapest daily rate
+    # Pre-process cars to map city -> cheapest daily rate and deep link
     city_rental_rates = {}
+    city_rental_links = {}
     if cars:
         for car in cars:
             if car.city not in city_rental_rates:
                 city_rental_rates[car.city] = car.price_per_day
+                city_rental_links[car.city] = car.deep_link
             else:
-                city_rental_rates[car.city] = min(city_rental_rates[car.city], car.price_per_day)
+                if car.price_per_day < city_rental_rates[car.city]:
+                    city_rental_rates[car.city] = car.price_per_day
+                    city_rental_links[car.city] = car.deep_link
 
     # Default fallback rate (R$)
     DEFAULT_DAILY_RATE = 150.0
@@ -114,18 +118,6 @@ def generate_ground_segments(
                     rate = city_rental_rates.get(city_a, DEFAULT_DAILY_RATE)
 
                     # Total Price = (Rate * Days) + (Gas * Distance)
-                    # Note: This is total price for the CAR.
-                    # The solver usually expects Price PER PERSON if pax > 1.
-                    # However, a car fits ~4 people.
-                    # To normalize for the solver which multiplies by pax, we might divide by 2 or 3?
-                    # Or we just set the price and let the solver treat it as per-person if we want consistent units.
-                    # For simplicity, let's assume the price is "per trip" but we divide by 1 (conservative) or 2?
-                    # Let's keep it simple: Price displayed is total car cost.
-                    # If the solver multiplies by pax, it might penalize cars too much.
-                    # BUT `Flight` object implies per-ticket price.
-                    # Let's divide by an assumed occupancy of 2 for per-person equivalent?
-                    # Or just list the full car price and airline="Car Rental (Total)"
-
                     total_car_cost = (rate * days_needed) + (GAS_PRICE_PER_KM * dist)
 
                     # Assume effective per-person price for 2 people to be competitive
@@ -146,7 +138,8 @@ def generate_ground_segments(
                         arrival_time=start_date + timedelta(hours=8, minutes=duration_minutes),
                         stops=0,
                         baggage="Mala Grande",
-                        details=details_str
+                        details=details_str,
+                        deep_link=city_rental_links.get(city_a)
                     )
                     ground_segments.append(seg)
 

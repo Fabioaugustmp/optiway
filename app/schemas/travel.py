@@ -30,6 +30,7 @@ class HotelBase(BaseModel):
     name: str
     price_per_night: float
     rating: float
+    stars: Optional[int] = 3
 
 class Hotel(HotelBase):
     pass

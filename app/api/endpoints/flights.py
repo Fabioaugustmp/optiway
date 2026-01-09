@@ -65,7 +65,8 @@ def get_cached_flights(db: Session, origin: str, destinations: List[str], start_
                  stops=fo.stops,
                  flight_number=fo.flight_number,
                  baggage="N/A",
-                 details=f"{fo.origin}->{fo.destination} ({fo.flight_number})"
+                 details=f"{fo.origin}->{fo.destination} ({fo.flight_number})",
+                 deep_link=fo.deep_link
              ))
              
     return cached_flights
@@ -214,7 +215,8 @@ def solve_trip(
                     stops=f.stops,
                     flight_number=f.flight_number,
                     departure_time=f.departure_time,
-                    arrival_time=f.arrival_time
+                    arrival_time=f.arrival_time,
+                    deep_link=f.deep_link
                 )
                 db.add(fo)
                 new_records += 1
@@ -256,26 +258,27 @@ def solve_trip(
 
         # Prepare Alternatives Grouped by Leg (move before saving itinerary)
         alternatives_map = {}
-        for f in flights:
+    # Prepare Alternatives Grouped by Leg (move before saving itinerary)
+    alternatives_map = {}
+    for f in flights:
             if hasattr(f, 'origin'):
                 key = f"{f.origin}-{f.destination}"
                 if key not in alternatives_map:
                     alternatives_map[key] = []
                 alternatives_map[key].append(f.dict() if hasattr(f, 'dict') else f)
 
-        # Save Itinerary
-        if result.status == "Optimal":
-            itinerary_rec = Itinerary(
-                search_id=search_rec.id,
-                total_cost=result.total_cost,
-                total_duration=result.total_duration,
-                details_json=json.dumps([leg.dict() for leg in result.itinerary], default=str),
-                alternatives_json=json.dumps(alternatives_map, default=str) if alternatives_map else None,
-                cost_breakdown_json=json.dumps(result.cost_breakdown, default=str) if hasattr(result, 'cost_breakdown') and result.cost_breakdown else None,
-                hotels_json=json.dumps([h.dict() for h in result.hotels_found], default=str) if hasattr(result, 'hotels_found') and result.hotels_found else None
-            )
-            db.add(itinerary_rec)
-            db.commit()
+        # Save Itinerary (Save even if not optimal so we have history)
+        itinerary_rec = Itinerary(
+            search_id=search_rec.id,
+            total_cost=result.total_cost,
+            total_duration=result.total_duration,
+            details_json=json.dumps([leg.dict() for leg in result.itinerary], default=str),
+            alternatives_json=json.dumps(alternatives_map, default=str) if alternatives_map else None,
+            cost_breakdown_json=json.dumps(result.cost_breakdown, default=str) if hasattr(result, 'cost_breakdown') and result.cost_breakdown else None,
+            hotels_json=json.dumps([h.dict() for h in result.hotels_found], default=str) if hasattr(result, 'hotels_found') and result.hotels_found else None
+        )
+        db.add(itinerary_rec)
+        db.commit()
     except Exception as e:
         print(f"DB Save Error: {e}")
         # Continue execution to return result
@@ -294,7 +297,6 @@ def solve_trip(
     result.hotels_found = hotels
     result.cars_found = cars
 
-    print(f"DEBUG: Returning {len(cars)} cars and {len(alternatives_map)} alternative groups")
     return result
 
 
@@ -325,14 +327,14 @@ def get_itinerary_detail(
         itinerary_list = it.details_json
 
     resp = {
-        "status": "Saved",
+        "status": "Saved" if (it.total_cost and it.total_cost > 0) else "Infeasible",
         "itinerary": itinerary_list,
         "total_cost": it.total_cost,
         "total_duration": it.total_duration,
-        "warning_message": None,
-        "alternatives": None,
-        "cost_breakdown": None,
-        "hotels_found": []
+        "warning_message": "Detalhes recuperados do histórico." if (not it.total_cost or it.total_cost == 0) else None,
+        "alternatives": json.loads(it.alternatives_json) if it.alternatives_json else None,
+        "cost_breakdown": json.loads(it.cost_breakdown_json) if it.cost_breakdown_json else None,
+        "hotels_found": json.loads(it.hotels_json) if it.hotels_json else []
     }
 
     return resp

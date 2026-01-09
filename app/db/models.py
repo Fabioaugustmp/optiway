@@ -57,6 +57,7 @@ class FlightOption(Base):
     flight_number = Column(String, default="N/A")
     departure_time = Column(DateTime)
     arrival_time = Column(DateTime)
+    deep_link = Column(String, nullable=True)
     
     search = relationship("SearchHistory", back_populates="flights")
 
