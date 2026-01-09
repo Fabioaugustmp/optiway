@@ -4,47 +4,55 @@
 
 ---
 
-## 1. Resumo Executivo
+## 1. Resumo
 
-O **OptiWay** é um sistema distribuído de suporte à decisão projetado para resolver problemas complexos de roteamento turístico. Através da integração de técnicas de **Inteligência Artificial** (Web Crawling e Processamento de Dados) e **Pesquisa Operacional** (Programação Linear Inteira Mista), a plataforma constrói itinerários multimodais ótimos, equilibrando as funções objetivo conflitantes de minimização de custo financeiro e minimização de tempo total de viagem.
-
-A arquitetura do sistema segue o padrão de microsserviços, garantindo escalabilidade, desacoplamento e manutenção eficiente de seus componentes críticos: coleta de dados, otimização matemática e interface de usuário.
+O **OptiWay** é um sistema distribuído de suporte à decisão projetado para abordar a complexidade inerente ao Problema de Roteamento de Viagens Multi-Cidades (*Multi-City Travel Routing Problem*). Integrando técnicas avançadas de **Coleta de Dados Heterogêneos** (APIs e Web Scraping) e **Pesquisa Operacional** (Programação Linear Inteira Mista), a plataforma propõe a construção de itinerários multimodais ótimos. O sistema diferencia-se pela capacidade de resolver conflitos entre múltiplos objetivos — minimização de custos financeiros e redução do tempo total de viagem — através de uma abordagem baseada na fronteira de Pareto. A arquitetura de microsserviços assegura escalabilidade, robustez e a desacoplagem necessária para a manutenção de componentes críticos como o *crawler* de voos e o *solver* matemático.
 
 ---
 
-## 2. Fundamentação Teórica e Funcionamento
+## 2. Introdução e Contextualização
 
-O fluxo de processamento do sistema é estruturado em quatro estágios sequenciais, desenhados para transformar dados brutos não estruturados em planos de viagem acionáveis e matematicamente otimizados.
+> **📘 Guia de Uso**: Para aprender a navegar no sistema, realizar cadastros e simulações, consulte o **[Manual do Usuário Completo](docs/MANUAL_DO_USUARIO.md)**.
 
-### 2.1 Coleta e Normalização de Dados (Data Acquisition Layer)
-O subsistema de **Crawlers** atua como a camada de percepção da plataforma, responsável pela aquisição de dados de mercado em tempo real. Implementa uma estratégia híbrida:
-*   **Integração via API (Amadeus)**: Para acesso determinístico e estruturado a inventários globais de companhias aéreas e redes hoteleiras.
-*   **Web Scraping (Playwright/Selenium)**: Emula o comportamento humano para extrair dados de fontes públicas (Google Flights), garantindo a amplitude da busca.
-*   **Persistência e Cache**: Implementa uma camada de cache local (SQLite) com política de expiração (TTL de 24 horas), mitigando a latência de rede e reduzindo custos operacionais de chamadas de API.
+O planejamento de itinerários turísticos que envolvem múltiplos destinos, restrições orçamentárias e janelas temporais rígidas é um problema combinatorial de alta complexidade, classificado na literatura como NP-Difícil. Mecanismos de busca convencionais (OTAs) operam predominantemente com lógica ponto-a-ponto, falhando em capturar as interdependências entre múltiplos trechos de uma viagem complexa.
 
-### 2.2 Otimização Multimodal (Multimodal Reasoning)
-Diferenciando-se de agregadores convencionais, o OptiWay incorpora lógica geoespacial avançada:
-*   **Geração de Arestas Sintéticas**: Identifica a inexistência de conexões aéreas diretas e calcula, via Distância de Haversine e APIs de roteamento, a viabilidade de conexões terrestres (transfer/carro alugado) entre nós vizinhos (ex: raio de 400km).
-*   **Grafo de Transporte Unificado**: Constrói um supergrafo onde vértices representam cidades/aeroportos e arestas representam voos ou trajetos terrestres, permitindo a otimização simultânea de diferentes modais.
-
-### 2.3 Otimização Combinatória (Solver Engine)
-O núcleo decisório do sistema baseia-se em modelagem matemática rigorosa:
-*   **Modelo**: Variação do Problema do Caixeiro Viajante Assimétrico (ATSP) com janelas de tempo e restrições de obrigatoriedade.
-*   **Formulação**: Programação Linear Inteira Mista (MILP), implementada através da biblioteca **PuLP**.
-*   **Função Objetivo ($Z$)**:
-    $$ \min Z = \sum (w_c \cdot Custo + w_t \cdot Tempo) $$
-    Onde $w_c$ e $w_t$ são os pesos normalizados definidos pelo usuário, permitindo a construção da fronteira de Pareto entre economia e rapidez.
-*   **Algoritmo**: Branch-and-Cut (via solucionador CBC), garantindo a otimalidade global ou o melhor gap de integridade possível dentro do tempo limite.
-
-### 2.4 Interface e Experiência do Usuário (Presentation Layer)
-*   **Dashboard Interativo**: Desenvolvido sobre **FastAPI** e templates Jinja2, oferece uma UX responsiva para definição de parâmetros de otimização.
-*   **Visualização de Dados**: Emprega bibliotecas como Leaflet.js para renderização geoespacial das rotas e plotagem gráfica das componentes de custo.
+O **OptiWay** preenche esta lacuna modelando a viagem como um grafo direcionado ponderado, onde o objetivo não é apenas encontrar o menor custo para uma aresta individual, mas sim minimizar o custo generalizado de um ciclo ou caminho hamiltoniano que satisfaça um conjunto de restrições de fluxo, tempo e visitação obrigatória.
 
 ---
 
-## 3. Arquitetura de Software
+## 3. Metodologia e Abordagem Teórica
 
-A solução adota uma arquitetura orientada a serviços (SOA) moderna.
+O funcionamento do sistema baseia-se em um *pipeline* de processamento de dados rigoroso, dividido em aquisição, normalização e otimização.
+
+### 3.1 Camada de Aquisição e Percepção de Dados
+O subsistema de **Crawlers** implementa uma estratégia híbrida para a construção da base de dados de voos e acomodações:
+*   **Integração Determinística (Amadeus API)**: Acesso estruturado a GDS (Global Distribution Systems) para obtenção de dados de referência.
+*   **Coleta Heurística (Web Scraping)**: Utilização de agentes autônomos (via Playwright) para emular interações humanas em agregadores públicos (Google Flights, Kayak), permitindo a captura de tarifas promocionais e combinações não listadas em APIs padrão.
+*   **Identificação de Atributos Críticos**: Extração e persistência de metadados essenciais, incluindo *Deep Links* para reserva direta, garantindo a acionabilidade da solução proposta.
+
+### 3.2 Motor de Otimização (Solver Engine)
+O núcleo decisório do sistema é fundamentado na modelagem matemática do **Problema do Caixeiro Viajante Assimétrico (ATSP)**, estendido com restrições de janelas de tempo.
+
+A formulação MILP (*Mixed-Integer Linear Programming*) busca minimizar a função objetivo $Z$:
+$$ \min Z = \sum_{i,j} x_{i,j} \cdot (\alpha \cdot C_{i,j} + \beta \cdot T_{i,j}) $$
+
+Onde:
+*   $x_{i,j}$: Variável de decisão binária (1 se o arco $i \to j$ é escolhido, 0 caso contrário).
+*   $C_{i,j}$ e $T_{i,j}$: Custo e Tempo associados à transição entre os nós $i$ e $j$.
+*   $\alpha, \beta$: Pesos de ponderação definidos pelo usuário.
+
+O sistema utiliza o algoritmo **Branch-and-Cut** (implementado via biblioteca PuLP e solver CBC) para garantir a convergência para o ótimo global ou para demonstrar a inviabilidade do conjunto de restrições.
+
+### 3.3 Robustez e Tratamento de Inviabilidade
+Reconhecendo a estocasticidade e as falhas inerentes à malha aérea, o sistema implementa mecanismos de resiliência:
+*   **Arestas Sintéticas (Modal Terrestre)**: Geração automática de conexões terrestres (via Distância de Haversine) para trechos curtos onde voos diretos inexistem.
+*   **Persistência de Resultados Parciais**: Em cenários de inviabilidade matemática ("Infeasible"), o sistema preserva e apresenta soluções parciais, alternativas sub-ótimas e fragmentos de itinerários (hotéis, carros) para auxiliar a tomada de decisão manual pelo usuário.
+
+---
+
+## 4. Arquitetura de Software
+
+O sistema adota uma arquitetura orientada a serviços (SOA), facilitando a manutenção e a evolução independente dos módulos.
 
 ```mermaid
 graph TD
@@ -55,84 +63,68 @@ graph TD
         Gateway --> SolverService[Solver Optimization Service]
     end
     
-    subgraph Data & External
-        CrawlerService --> Cache[(SQLite Cache)]
-        CrawlerService --> ExternalAPIs[Amadeus / Google / Kayak]
-        SolverService --> MathEngine[CBC Solver Integration]
+    subgraph Data Persistence
+        Gateway --> DB[(Primary DB - PostgreSQL/SQLite)]
+        CrawlerService --> Cache[(Cache DB)]
     end
     
-    SolverService --> Result[Plano Otimizado JSON]
-    Result --> Gateway
+    subgraph Computation & External
+        SolverService --> MathEngine[CBC Solver]
+        CrawlerService --> ExternalAPIs[Provedores de Voos]
+    end
 ```
 
-### Componentes do Sistema
-| Componente | Função Técnica | Tecnologias Chave |
-| :--- | :--- | :--- |
-| **Main App** | Orquestração, Auth, Gateway e UI | FastAPI, Jinja2, JWT |
-| **Flight Crawler** | Extração e normalização de dados | Playwright, BeautifulSoup, Pandas |
-| **Solver Service** | Modelagem matemática e resolução | PuLP, NumPy, SciPy |
-
----
-
-## 4. Estrutura do Repositório
-
-Organização lógica do código-fonte seguindo padrões de engenharia de software Python.
-
-- `app/`: Aplicação Principal
-    - `api/`: Definição de rotas e controladores.
-    - `db/`: Modelos ORM (SQLAlchemy) e esquemas de banco de dados.
-    - `services/`: Lógica de negócio e adaptadores de serviço.
-    - `templates/`: Camada de visualização (HTML/CSS/JS).
-- `flight_crawler/`: Microsserviço de Coleta de Dados
-    - `scrapers/`: Implementações específicas de scrapers (Design Pattern Strategy).
-- `solver_service/`: Microsserviço de Otimização
-    - `models/`: Formulações matemáticas PuLP.
-- `docs/`: Documentação técnica detalhada dos serviços.
+### Componentes Principais
+1.  **Main App (Orchestrator)**: Responsável pela gestão de estado, autenticação e composição de respostas. Gerencia o histórico de buscas e a visualização de rotas (feitas e infactíveis).
+2.  **Solver Service**: Microsserviço CPU-bound isolado para execução dos algoritmos de otimização combinatória.
+3.  **Flight Crawler**: Microsserviço I/O-bound responsável pela navegação e raspagem de dados em tempo real.
 
 ---
 
 ## 5. Procedimentos de Instalação e Execução
 
-O sistema suporta implantação via contêineres (recomendado para reprodutibilidade) ou execução direta em ambiente virtual Python.
+O sistema foi projetado para portabilidade, suportando execução via containerização ou em ambiente virtual Python padrão.
 
 ### 5.1 Pré-requisitos
-*   Docker Engine & Docker Compose (Recomendado)
-*   Ou Python 3.10+ com `pip` e `venv`.
+*   **Docker Engine** & **Docker Compose** (Recomendado para orquestração completa).
+*   Alternativamente: Python 3.12+, `pip` e `venv`.
 
-### 5.2 Execução Containerizada (Docker)
-
-O arquivo `docker-compose.yml` orquestra o ciclo de vida de todos os microsserviços.
+### 5.2 Execução via Docker (Ambiente de Produção/Homologação)
+O orquestrador `docker-compose` gerencia o ciclo de vida de todos os serviços e dependências.
 
 ```bash
-# Compilar e iniciar os serviços em background
+# Construção e inicialização dos serviços
 docker compose up --build -d
 ```
+O sistema estará disponível em:
+*   **Frontend/API**: `http://localhost:8000`
+*   **Health Checks**: `http://localhost:8000/health`
 
-**Endereçamento dos Serviços:**
-*   Main App (UI & Gateway): `http://localhost:8000`
-*   Flight Crawler Service: `http://localhost:8001`
-*   Solver Service: `http://localhost:8002`
+### 5.3 Execução Manual (Ambiente de Desenvolvimento)
 
-### 5.3 Execução Manual (Desenvolvimento)
-
-Para depuração ou desenvolvimento isolado de componentes:
-
-**1. Main App (Backend):**
+**1. Instalação de Dependências**
 ```bash
 pip install -r requirements.txt
+pip install -r flight_crawler/requirements.txt
+# Instalação dos binários do navegador para o Crawler
+python -m playwright install
+```
+
+**2. Inicialização dos Serviços**
+Recomenda-se a execução em terminais distintos:
+
+*Terminal 1 (Main App):*
+```bash
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-**2. Flight Crawler:**
+*Terminal 2 (Flight Crawler):*
 ```bash
-pip install -r flight_crawler/requirements.txt
-python -m playwright install --with-deps  # Instalação de binários de navegador
 uvicorn flight_crawler.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
-**3. Solver Service:**
+*Terminal 3 (Solver Service):*
 ```bash
-# Compartilha dependências base
 uvicorn solver_service.main:app --host 0.0.0.0 --port 8002 --reload
 ```
 
@@ -159,4 +151,8 @@ O "cérebro" matemático. Recebe um grafo ponderado e aplica algoritmos de Pesqu
 
 ---
 
-> **Nota Acadêmica**: Desenvolvido sob a ótica de Sistemas de Informação Distribuídos e Pesquisa Operacional Aplicada. Consulte a pasta `docs/` para especificações formais de cada subsistema.
+## 7. Referências Bibliográficas
+
+1.  **Miller, C. E., Tucker, A. W., & Zemlin, R. A.** (1960). *Integer programming formulation of traveling salesman problems*. Journal of the ACM.
+2.  **Dantzig, G. B., Fulkerson, D. R., & Johnson, S. M.** (1954). *Solution of a large-scale traveling-salesman problem*. Operations Research.
+3.  **Toth, P., & Vigo, D.** (2014). *Vehicle Routing: Problems, Methods, and Applications*. SIAM.

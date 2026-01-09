@@ -257,10 +257,9 @@ def solve_trip(
             print(f"Saved {new_hotels_count} new hotel options to DB.")
 
         # Prepare Alternatives Grouped by Leg (move before saving itinerary)
+        # Prepare Alternatives Grouped by Leg (move before saving itinerary)
         alternatives_map = {}
-    # Prepare Alternatives Grouped by Leg (move before saving itinerary)
-    alternatives_map = {}
-    for f in flights:
+        for f in flights:
             if hasattr(f, 'origin'):
                 key = f"{f.origin}-{f.destination}"
                 if key not in alternatives_map:
