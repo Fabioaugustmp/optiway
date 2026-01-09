@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import List
 from app.schemas.travel import Flight, Hotel, CarRental
+from app.services.location_service import get_location_service
 
 # Try importing Selenium
 try:
@@ -27,61 +28,9 @@ class BaseCrawler(ABC):
         pass
 
     @abstractmethod
-    def fetch_car_rentals(self, cities: List[str]) -> List[CarRental]:
+    def fetch_car_rentals(self, cities: List[str], date: datetime = None) -> List[CarRental]:
         pass
 
-class MockCrawler(BaseCrawler):
-    def fetch_flights(self, origin: str, destinations: List[str], date: datetime, adults: int = 1, children: int = 0) -> List[Flight]:
-        flights = []
-        for dest in destinations:
-            if origin == dest:
-                continue
-
-            # Generate 3-5 flight options per route
-            for _ in range(random.randint(3, 5)):
-                price = random.uniform(200, 1500)
-                duration = random.randint(45, 300) # minutes
-                airline = random.choice(["Latam", "Gol", "Azul", "Voepass"])
-
-                # Randomize dep time
-                hour = random.randint(6, 22)
-                minute = random.choice([0, 15, 30, 45])
-                dep_time = date.replace(hour=hour, minute=minute)
-                arr_time = dep_time + timedelta(minutes=duration)
-
-                flights.append(Flight(
-                    origin=origin,
-                    destination=dest,
-                    price=round(price, 2),
-                    duration_minutes=duration,
-                    airline=airline,
-                    departure_time=dep_time,
-                    arrival_time=arr_time,
-                    stops=0,
-                    baggage="1 PC",
-                    details=f"{origin}->{dest}"
-                ))
-        return flights
-
-    def fetch_hotels(self, cities: List[str]) -> List[Hotel]:
-        hotels = []
-        for city in cities:
-            for i in range(random.randint(3, 6)):
-                name = f"Hotel {random.choice(['Plaza', 'Royal', 'Suites', 'Inn', 'Grand'])} {city}"
-                price = random.uniform(150, 800)
-                rating = round(random.uniform(3.0, 5.0), 1)
-                hotels.append(Hotel(city=city, name=name, price_per_night=round(price, 2), rating=rating))
-        return hotels
-
-    def fetch_car_rentals(self, cities: List[str]) -> List[CarRental]:
-        cars = []
-        for city in cities:
-            for _ in range(random.randint(2, 4)):
-                company = random.choice(["Localiza", "Movida", "Unidas"])
-                model = random.choice(["Gol", "Onix", "Compass", "Renegade"])
-                price = random.uniform(80, 250)
-                cars.append(CarRental(city=city, company=company, price_per_day=round(price, 2), model=model))
-        return cars
 
 class AmadeusCrawler(BaseCrawler):
     def __init__(self, client_id: str, client_secret: str, production: bool = False):
@@ -250,27 +199,129 @@ class AmadeusCrawler(BaseCrawler):
         
         return all_hotels
 
-    def fetch_car_rentals(self, cities: List[str]) -> List[CarRental]:
+    def fetch_car_rentals(self, cities: List[str], date: datetime = None) -> List[CarRental]:
         # TODO: Implement Amadeus Car Search
         return []
 
     def _get_iata(self, city_name: str) -> str:
-        mapping = {
-            "São Paulo": "GRU", "Sao Paulo": "GRU",
-            "Rio de Janeiro": "GIG",
-            "Belo Horizonte": "CNF",
-            "Brasília": "BSB", "Brasilia": "BSB",
-            "Salvador": "SSA", "Curitiba": "CWB",
-            "Florianópolis": "FLN", "Florianopolis": "FLN",
-            "Miami": "MIA", "Orlando": "MCO",
-            "New York": "JFK", "Chicago": "ORD",
-            "Las Vegas": "LAS", "Los Angeles": "LAX", "San Francisco": "SFO",
-            "Paris": "CDG", "London": "LHR"
-        }
-        return mapping.get(city_name, "GRU")
+        return get_location_service().resolve_iata(city_name)
 
-def get_crawler(provider: str = "Mock Data", key: str = None, secret: str = None) -> BaseCrawler:
+import requests
+import logging
+
+logger = logging.getLogger(__name__)
+
+class FlightCrawlerProxy(BaseCrawler):
+    """
+    Proxy crawler that delegates flight searches to the flight-crawler microservice on port 8001.
+    """
+    def __init__(self, scraper_name: str):
+        self.scraper_name = scraper_name.lower().replace(" ", "_")
+        self.base_url = "http://localhost:8001/api/v1/crawl"
+
+    def fetch_flights(self, origin: str, destinations: List[str], date: datetime, adults: int = 1, children: int = 0) -> List[Flight]:
+        try:
+            search_inputs = []
+            origin_iata = self._get_iata(origin)
+            
+            for dest in destinations:
+                dest_iata = self._get_iata(dest)
+                search_inputs.append({
+                    "origin": origin_iata,
+                    "destination": dest_iata,
+                    "departure_date": date.strftime("%Y-%m-%d"),
+                    "passengers": adults + children,
+                    "scrapers": [self.scraper_name]
+                })
+
+            response = requests.post(self.base_url, json=search_inputs, timeout=120)
+            response.raise_for_status()
+            
+            result_data = response.json()
+            if result_data.get("status") != "success":
+                logger.error(f"FlightCrawler error: {result_data}")
+                return []
+
+            flights = []
+            results = result_data.get("data", {})
+            scraper_key = self.scraper_name
+            if scraper_key not in results:
+                scraper_key = next((k for k in results.keys() if self.scraper_name in k.lower()), None)
+
+            if scraper_key and scraper_key in results:
+                for f in results[scraper_key]:
+                    flights.append(Flight(
+                        origin=origin,
+                        destination=f.get("destination_name", destinations[0]), 
+                        price=float(f.get("price", 0)),
+                        duration_minutes=int(f.get("duration_minutes", 0)) or 180,
+                        airline=f.get("airline", "N/A"),
+                        departure_time=datetime.fromisoformat(f.get("departure_time")),
+                        arrival_time=datetime.fromisoformat(f.get("arrival_time")),
+                        stops=f.get("stops", 0),
+                        baggage=f.get("baggage", "N/A"),
+                        flight_number=f.get("flight_number", "N/A"),
+                        details=f.get("deep_link", ""),
+                        deep_link=f.get("deep_link", "")
+                    ))
+            
+            return flights
+        except Exception as e:
+            logger.error(f"Error calling FlightCrawler for {self.scraper_name}: {e}")
+            return []
+
+    def _get_iata(self, city_name: str) -> str:
+        return get_location_service().resolve_iata(city_name)
+
+    def fetch_hotels(self, cities: List[str]) -> List[Hotel]:
+        return []
+
+    def fetch_car_rentals(self, cities: List[str], date: datetime = None) -> List[CarRental]:
+        """Fetch car rentals from the microservice."""
+        if self.scraper_name != "kayak":
+            return []
+            
+        try:
+            # Use provided date or fallback to 30 days from now
+            start = date if date else (datetime.now() + timedelta(days=30))
+            end = start + timedelta(days=2)
+            
+            search_inputs = []
+            for city in cities:
+                search_inputs.append({
+                    "city": city,
+                    "pick_up_date": start.strftime("%Y-%m-%d"),
+                    "drop_off_date": end.strftime("%Y-%m-%d"),
+                    "scrapers": ["kayak"]
+                })
+
+            response = requests.post("http://localhost:8001/api/v1/crawl-cars", json=search_inputs, timeout=120)
+            response.raise_for_status()
+            
+            result_data = response.json()
+            if result_data.get("status") != "success":
+                return []
+
+            cars = []
+            results = result_data.get("data", {})
+            for scraper_key, car_list in results.items():
+                for c in car_list:
+                    cars.append(CarRental(
+                        city=c.get("city") or cities[0],
+                        company=c.get("company"),
+                        price_per_day=float(c.get("price", 0)) / 2, # Assuming 2-day search
+                        model=c.get("model"),
+                        deep_link=c.get("deep_link", "")
+                    ))
+            return cars
+        except Exception as e:
+            logger.error(f"Error calling FlightCrawler for cars: {e}")
+            return []
+
+def get_crawler(provider: str = "Kayak", key: str = None, secret: str = None) -> BaseCrawler:
     if provider == "Amadeus API" and key and secret:
         return AmadeusCrawler(key, secret)
-    # Default to Mock
-    return MockCrawler()
+    elif provider in ["Kayak", "Google Flights"]:
+        return FlightCrawlerProxy(provider)
+    
+    raise ValueError(f"Provider '{provider}' not supported or not configured.")

@@ -4,6 +4,7 @@ from datetime import datetime
 
 # Shared Pydantic Models
 
+
 class FlightBase(BaseModel):
     origin: str
     destination: str
@@ -16,6 +17,7 @@ class FlightBase(BaseModel):
     baggage: str = "N/A"
     flight_number: str = "N/A"
     details: str = ""
+    deep_link: Optional[str] = None
 
 class FlightCreate(FlightBase):
     pass
@@ -37,6 +39,7 @@ class CarRentalBase(BaseModel):
     company: str
     price_per_day: float
     model: str
+    deep_link: Optional[str] = None
 
 class CarRental(CarRentalBase):
     pass
@@ -80,3 +83,4 @@ class SolverResult(BaseModel):
     alternatives: Optional[dict] = None # Key: "Origin-Destination", Value: List[Flight]
     cost_breakdown: Optional[dict] = None
     hotels_found: Optional[List[Hotel]] = []
+    cars_found: Optional[List[CarRental]] = []

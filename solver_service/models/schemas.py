@@ -20,6 +20,7 @@ class FlightSchema(BaseModel):
     baggage: str = "N/A"
     flight_number: str = "N/A"
     details: str = ""
+    deep_link: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -42,6 +43,7 @@ class CarRentalSchema(BaseModel):
     company: str
     price_per_day: float
     model: str
+    deep_link: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -94,6 +96,7 @@ class SolveResponseSchema(BaseModel):
     alternatives: Optional[Dict[str, List[FlightSchema]]] = None
     cost_breakdown: Optional[Dict[str, float]] = None
     hotels_found: Optional[List[HotelSchema]] = []
+    cars_found: Optional[List[CarRentalSchema]] = []
 
     class Config:
         from_attributes = True

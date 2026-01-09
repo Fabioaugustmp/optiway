@@ -1,6 +1,40 @@
 {% extends "layout.html" %}
 
 {% block content %}
+<style>
+    .autocomplete-results {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        z-index: 1050;
+        max-height: 250px;
+        overflow-y: auto;
+    }
+
+    .autocomplete-item {
+        padding: 10px 15px;
+        cursor: pointer;
+        border-bottom: 1px solid #eee;
+    }
+
+    .autocomplete-item:last-child {
+        border-bottom: none;
+    }
+
+    .autocomplete-item:hover {
+        background-color: #f8f9fa;
+        color: #0d6efd;
+    }
+
+    .autocomplete-item .small {
+        font-size: 0.8em;
+        display: block;
+    }
+</style>
 <div class="row">
     <!-- Config Panel -->
     <div class="col-md-4 mb-4">
@@ -26,13 +60,12 @@
                         <input type="date" class="form-control" name="start_date" id="startDate" required>
                     </div>
 
-                     <div class="mb-3">
+                    <div class="mb-3">
                         <label class="form-label">Fonte de Dados</label>
                         <select class="form-select" id="dataProvider" name="provider">
-                            <option value="Mock Data" selected>Mocks</option>
                             <option value="Amadeus API">Amadeus</option>
                             <option value="Google Flights">Foogle Fly (Google Flights)</option>
-                            <option value="Kayak">Kakak (Kayak)</option>
+                            <option value="Kayak" selected>Kakak (Kayak)</option>
                         </select>
                         <div class="form-check form-switch mt-3">
                             <input class="form-check-input" type="checkbox" id="searchHotels" name="search_hotels">
@@ -51,19 +84,25 @@
                         </div>
                     </div>
 
-                    <div class="mb-3">
+                    <div class="mb-3 position-relative">
                         <label class="form-label">Origens (sep. vírgula)</label>
-                        <input type="text" class="form-control" name="origin_cities" value="São Paulo" required>
+                        <input type="text" class="form-control autocomplete-location" name="origin_cities"
+                            value="São Paulo" required autocomplete="off">
+                        <div class="autocomplete-results shadow-sm d-none"></div>
                     </div>
 
-                    <div class="mb-3">
+                    <div class="mb-3 position-relative">
                         <label class="form-label">Destinos (sep. vírgula)</label>
-                        <input type="text" class="form-control" name="destination_cities" value="Miami" required>
+                        <input type="text" class="form-control autocomplete-location" name="destination_cities"
+                            value="Miami" required autocomplete="off">
+                        <div class="autocomplete-results shadow-sm d-none"></div>
                     </div>
 
-                    <div class="mb-3">
+                    <div class="mb-3 position-relative">
                         <label class="form-label">Cidades Obrigatórias</label>
-                        <input type="text" class="form-control" name="mandatory_cities" placeholder="Opcional">
+                        <input type="text" class="form-control autocomplete-location" name="mandatory_cities"
+                            placeholder="Opcional" autocomplete="off">
+                        <div class="autocomplete-results shadow-sm d-none"></div>
                     </div>
 
                     <hr>
@@ -123,7 +162,9 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body" id="itineraryModalBody">
-                <div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
@@ -158,6 +199,11 @@
                 fetch('/users/history', { headers: { 'Authorization': 'Bearer ' + token } }),
                 fetch('/api/itineraries', { headers: { 'Authorization': 'Bearer ' + token } })
             ]);
+
+            if (resHist.status === 401) {
+                window.location.href = "/login";
+                return;
+            }
 
             if (!resHist.ok) {
                 list.innerHTML = '<p class="text-center text-muted">Falha ao carregar histórico.</p>';
@@ -241,14 +287,12 @@
         const weightCost = document.getElementById('weightRange').value / 100;
 
         const reqBody = {
-            origin_cities: formData.get('origin_cities').split(',').map(s => s.trim()),
-            destination_cities: formData.get('destination_cities').split(',').map(s => s.trim()),
-            mandatory_cities: formData.get('mandatory_cities') ? formData.get('mandatory_cities').split(',').map(s => s.trim()) : [],
+            origin_cities: formData.get('origin_cities').split(',').map(s => s.trim()).filter(s => s !== ""),
+            destination_cities: formData.get('destination_cities').split(',').map(s => s.trim()).filter(s => s !== ""),
+            mandatory_cities: formData.get('mandatory_cities') ? formData.get('mandatory_cities').split(',').map(s => s.trim()).filter(s => s !== "") : [],
             pax_adults: parseInt(formData.get('pax_adults')),
             pax_children: parseInt(formData.get('pax_children')),
             start_date: formData.get('start_date') + "T00:00:00",
-            weight_cost: weightCost,
-            weight_time: 1 - weightCost,
             weight_cost: weightCost,
             weight_time: 1 - weightCost,
             is_round_trip: chkRound.checked,
@@ -261,6 +305,22 @@
         }
 
         try {
+            // Validate Cities/Airports
+            const allCitiesToCheck = [...reqBody.origin_cities, ...reqBody.destination_cities, ...reqBody.mandatory_cities];
+            if (allCitiesToCheck.length > 0) {
+                const queryStr = allCitiesToCheck.map(c => `q=${encodeURIComponent(c)}`).join('&');
+                const valRes = await fetch(`/api/locations/validate?${queryStr}`);
+                const valData = await valRes.json();
+
+                if (!valData.valid) {
+                    alert(`⚠️ Aeroporto(s) não encontrado(s): ${valData.invalid.join(', ')}. \nPor favor, utilize as sugestões do dropdown.`);
+                    document.getElementById('loadingState').classList.add('d-none');
+                    document.getElementById('welcomeState').classList.remove('d-none');
+                    document.getElementById('btnSubmit').disabled = false;
+                    return;
+                }
+            }
+
             const res = await fetch('/api/solve', {
                 method: 'POST',
                 headers: {
@@ -305,10 +365,57 @@
             }
 
             if (data.warning_message) {
-                msg += `<div class="alert alert-info">💡 <strong>Sugestão:</strong> ${data.warning_message}</div>`;
+                msg += `<div class="alert alert-info">💡 <strong>Sugestão:</strong> ${data.warning_message} <br>
+                <small class="text-muted">(Debug: Encontrou ${data.alternatives ? Object.keys(data.alternatives).length : 0} rotas e ${data.cars_found ? data.cars_found.length : 0} carros)</small></div>`;
             }
             container.innerHTML = msg;
-            return;
+
+            // Allow partial rendering if we have alternatives, hotels, or cars
+            if (!data.itinerary || data.itinerary.length === 0) {
+                let hasFallback = false;
+                let fallbackHtml = '<div class="mt-4">';
+
+                // Alternatives (Flights)
+                if (data.alternatives && Object.keys(data.alternatives).length > 0) {
+                    hasFallback = true;
+                    fallbackHtml += `<h5>✈️ Opções de Voos Encontradas</h5><div id="alternativesFallback"></div>`;
+                    setTimeout(() => {
+                        renderAlternatives(data.alternatives, 'alternativesFallback');
+                    }, 150);
+                }
+
+                // Cars
+                if (data.cars_found && data.cars_found.length > 0) {
+                    hasFallback = true;
+                    fallbackHtml += `<h5 class="mt-4">🚗 Carros Encontrados</h5>
+                                      <div class="row row-cols-1 row-cols-md-3 g-3">`;
+                    data.cars_found.forEach(car => {
+                        fallbackHtml += `
+                            <div class="col">
+                                <div class="card h-100 border-success shadow-sm">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <h6 class="card-title text-success mb-0">
+                                                ${car.model}
+                                            </h6>
+                                            <span class="badge bg-success">R$ ${car.price_per_day.toFixed(2)}</span>
+                                        </div>
+                                        <p class="card-text small text-muted mb-3"><i class="bi bi-building"></i> ${car.company} | ${car.city}</p>
+                                        ${car.deep_link ? `<a href="${car.deep_link}" target="_blank" class="btn btn-sm btn-outline-success w-100">Alugar ↗</a>` : ''}
+                                    </div>
+                                </div>
+                            </div>`;
+                    });
+                    fallbackHtml += `</div>`;
+                }
+
+                if (hasFallback) {
+                    container.innerHTML += fallbackHtml + '</div>';
+
+                }
+
+                return;
+            }
         }
 
         // Check for Hybrid Route (Car segments)
@@ -391,6 +498,20 @@
             const depTime = fmtTime(flight.departure_time);
             const arrTime = fmtTime(flight.arrival_time);
 
+            // Book link if available
+            let detailsDisplay = `<span class="badge bg-secondary">${flight.stops} paradas</span>`;
+
+            // Check deep_link field first, then fallback to details if it's a URL
+            let link = flight.deep_link;
+            if (!link && flight.details && flight.details.startsWith('http')) {
+                link = flight.details;
+            }
+
+            if (link) {
+                const btnLabel = isCar ? "Alugar ↗" : "Reservar ↗";
+                detailsDisplay += `<br><a href="${link}" target="_blank" class="btn btn-sm btn-primary mt-1 text-white">${btnLabel}</a>`;
+            }
+
             rows += `
                 <tr class="${rowClass}" style="cursor: pointer;" onclick="showAlternatives('${leg.origin}-${leg.destination}')" title="Clique para ver alternativas">
                     <td><strong>${leg.origin}</strong> <br> <small class="text-muted">➝ ${leg.destination}</small></td>
@@ -399,7 +520,7 @@
                     <td>${arrTime}</td>
                     <td>${leg.duration} min</td>
                     <td>R$ ${leg.price.toFixed(2)}</td>
-                    <td><span class="badge bg-secondary">${flight.stops || 0} paradas</span></td>
+                    <td>${detailsDisplay}</td>
                 </tr>
             `;
 
@@ -517,7 +638,7 @@
                   <div class="card-body">
                     <h5 class="card-title">Resumo</h5>
                     <p><strong>Custo total:</strong> R$ ${data.total_cost.toFixed(2)}</p>
-                    <p><strong>Tempo total:</strong> ${(data.total_duration/60).toFixed(1)}h</p>
+                    <p><strong>Tempo total:</strong> ${(data.total_duration / 60).toFixed(1)}h</p>
                   </div>
                 </div>
                 <div class="card"><div class="card-body"><h5>Trechos</h5><div class="table-responsive"><table class="table"><thead><tr><th>Origem</th><th>Destino</th><th>Cia</th><th>Partida</th><th>Chegada</th><th>Preço</th></tr></thead><tbody>`;
@@ -920,6 +1041,82 @@
         // Key is "Origin-Dest". Logic above creates keys in undefined order, but we can match text content or ID if we made it predictable.
         // For now, simply switching tab is enough since all are listed.
     };
+
+    // Advanced Location Autocomplete with Keyboard Support
+    document.querySelectorAll('.autocomplete-location').forEach(input => {
+        const resultsDiv = input.parentElement.querySelector('.autocomplete-results');
+        let selectedIndex = -1;
+
+        input.addEventListener('keydown', (e) => {
+            const items = resultsDiv.querySelectorAll('.autocomplete-item');
+            if (e.key === 'ArrowDown') {
+                selectedIndex = (selectedIndex + 1) % items.length;
+                updateSelection(items);
+                e.preventDefault();
+            } else if (e.key === 'ArrowUp') {
+                selectedIndex = (selectedIndex - 1 + items.length) % items.length;
+                updateSelection(items);
+                e.preventDefault();
+            } else if (e.key === 'Enter' && selectedIndex >= 0) {
+                items[selectedIndex].click();
+                e.preventDefault();
+            }
+        });
+
+        function updateSelection(items) {
+            items.forEach((item, idx) => {
+                item.classList.toggle('bg-light', idx === selectedIndex);
+                if (idx === selectedIndex) item.scrollIntoView({ block: 'nearest' });
+            });
+        }
+
+        input.addEventListener('input', async (e) => {
+            const pieces = e.target.value.split(',');
+            const currentQuery = pieces.pop().trim();
+            selectedIndex = -1;
+
+            if (currentQuery.length < 2) {
+                resultsDiv.classList.add('d-none');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/locations/search?q=${encodeURIComponent(currentQuery)}`);
+                const data = await res.json();
+
+                resultsDiv.innerHTML = '';
+                if (data.length === 0) {
+                    resultsDiv.innerHTML = '<div class="p-2 text-muted small">Nenhum aeroporto encontrado</div>';
+                    resultsDiv.classList.remove('d-none');
+                    return;
+                }
+
+                resultsDiv.classList.remove('d-none');
+                data.forEach(loc => {
+                    const item = document.createElement('div');
+                    item.className = 'autocomplete-item';
+                    item.innerHTML = `
+                        <strong>${loc.city} (${loc.iata})</strong>
+                        <span class="small text-muted">${loc.name}, ${loc.country}</span>
+                    `;
+                    item.addEventListener('click', () => {
+                        pieces.push(loc.iata);
+                        // Add comma only if it's the first element or user typed a comma
+                        input.value = pieces.join(', ').trim() + ', ';
+                        resultsDiv.classList.add('d-none');
+                        input.focus();
+                    });
+                    resultsDiv.appendChild(item);
+                });
+            } catch (err) { console.error(err); }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!input.contains(e.target) && !resultsDiv.contains(e.target)) {
+                resultsDiv.classList.add('d-none');
+            }
+        });
+    });
 </script>
 <!-- Load Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

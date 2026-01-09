@@ -19,3 +19,17 @@ class FlightResult(BaseModel):
     currency: str = "USD"
     deep_link: str
     source_scraper: str
+
+class CarSearchInput(BaseModel):
+    city: str
+    pick_up_date: str # YYYY-MM-DD
+    drop_off_date: str # YYYY-MM-DD
+    scrapers: Optional[List[str]] = Field(default=None)
+
+class CarResult(BaseModel):
+    company: str
+    model: str
+    price: float
+    currency: str = "BRL"
+    deep_link: str
+    source_scraper: str

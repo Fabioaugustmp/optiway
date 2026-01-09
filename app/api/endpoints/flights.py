@@ -80,7 +80,7 @@ def solve_trip(
 ):
     # ... (init crawler, graph expansion) ...
     # 1. Init Crawler
-    provider = request.provider or ("Mock Data" if not settings.AMADEUS_API_KEY else "Amadeus API")
+    provider = request.provider or ("Kayak" if not settings.AMADEUS_API_KEY else "Amadeus API")
 
     crawler = get_crawler(
         provider=provider,
@@ -88,18 +88,12 @@ def solve_trip(
         secret=settings.AMADEUS_API_SECRET
     )
 
-    all_cities = list(set(request.origin_cities + request.destination_cities + request.mandatory_cities))
+    # Filter empty strings and duplicates
+    origin_cities = [c for c in request.origin_cities if c.strip()]
+    dest_cities = [c for c in request.destination_cities if c.strip()]
+    mandatory = [c for c in request.mandatory_cities if c.strip()]
     
-    # Expand graph with nearby airports for cities
-    expanded_set = set(all_cities)
-    for city in all_cities:
-        nearest = find_nearest_airport(city)
-        if nearest:
-            near_city, dist = nearest
-            if dist < 400 and near_city != city:
-                expanded_set.add(near_city)
-    
-    all_cities = list(expanded_set)
+    all_cities = list(set(origin_cities + dest_cities + mandatory))
     flights = []
     
     cached_flights_set = set() # Track cached items
@@ -127,7 +121,7 @@ def solve_trip(
                 flights.extend(new_flights)
 
     # 3. Fetch Car Rentals
-    cars = crawler.fetch_car_rentals(all_cities)
+    cars = crawler.fetch_car_rentals(all_cities, date=request.start_date)
 
     # 4. Inject Ground Segments
     ground_legs = generate_ground_segments(all_cities, request.start_date, cars=cars)
@@ -172,7 +166,7 @@ def solve_trip(
                 if nearest:
                     near_city, dist = nearest
                     ground_transport = suggest_ground_transport(near_city, dest, dist)
-                    suggestions.append(f"Fly to {near_city} and take ground transport ({ground_transport})")
+                    suggestions.append(f"Voe para {near_city} e pegue o transporte terrestre ({ground_transport})")
 
         if suggestions:
             suggestion_msg = " | ".join(suggestions)
@@ -296,7 +290,9 @@ def solve_trip(
     
     result.alternatives = alternatives_map
     result.hotels_found = hotels
+    result.cars_found = cars
 
+    print(f"DEBUG: Returning {len(cars)} cars and {len(alternatives_map)} alternative groups")
     return result
 
 
