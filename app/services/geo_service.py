@@ -2,41 +2,9 @@ import math
 from typing import Optional, Tuple, List, Dict
 from datetime import datetime, timedelta
 from app.schemas.travel import Flight, CarRental
+from app.services.location_service import get_location_service
 
-# Simple internal DB of airport coordinates (Latitude, Longitude)
-AIRPORT_COORDS = {
-    "GRU": (-23.4356, -46.4731), # Sao Paulo
-    "GIG": (-22.8089, -43.2436), # Rio
-    "CNF": (-19.6244, -43.9719), # Belo Horizonte
-    "BSB": (-15.869, -47.9208),  # Brasilia
-    "SSA": (-12.9086, -38.3225), # Salvador
-    "MIA": (25.7959, -80.2870),  # Miami
-    "MCO": (28.4312, -81.3080),  # Orlando
-    "JFK": (40.6413, -73.7781),  # New York
-    "LHR": (51.4700, -0.4543),   # London
-    "CDG": (49.0097, 2.5479),    # Paris
-    "UDI": (-18.8836, -48.2253), # Uberlandia
-    "ITUIUTABA_LOC": (-18.9772, -49.4622), # Ituiutaba (City)
-    "GYN": (-16.6323, -49.2183), # Goiania
-    "APARECIDA_LOC": (-16.8227, -49.2486), # Aparecida de Goiania
-    # Add more as needed or use an external library
-}
-
-CITY_TO_IATA = {
-    "São Paulo": "GRU",
-    "Rio de Janeiro": "GIG",
-    "Belo Horizonte": "CNF",
-    "Brasília": "BSB",
-    "Miami": "MIA",
-    "Orlando": "MCO",
-    "New York": "JFK",
-    "London": "LHR",
-    "Paris": "CDG",
-    "Uberlândia": "UDI",
-    "Ituiutaba": "ITUIUTABA_LOC",
-    "Goiânia": "GYN",
-    "Aparecida de Goiânia": "APARECIDA_LOC"
-}
+# The hardcoded tables are now managed centrally by LocationService
 
 def haversine_distance(coord1: Tuple[float, float], coord2: Tuple[float, float]) -> float:
     """
@@ -57,10 +25,14 @@ def haversine_distance(coord1: Tuple[float, float], coord2: Tuple[float, float])
     return d
 
 def get_coords(city: str) -> Optional[Tuple[float, float]]:
-    iata = CITY_TO_IATA.get(city)
-    if iata:
-        return AIRPORT_COORDS.get(iata)
-    return None
+    service = get_location_service()
+    # If input is already an IATA
+    if len(city) == 3 and city.isalpha():
+        return service.get_coords(city)
+    
+    # Otherwise resolve IATA first
+    iata = service.resolve_iata(city)
+    return service.get_coords(iata)
 
 def find_nearest_airport(target_city: str) -> Optional[Tuple[str, float]]:
     """
@@ -70,18 +42,20 @@ def find_nearest_airport(target_city: str) -> Optional[Tuple[str, float]]:
     if not target_coords:
         return None
 
+    service = get_location_service()
     nearest_city = None
     min_dist = float('inf')
 
-    for city, iata in CITY_TO_IATA.items():
-        if city == target_city: continue
+    # Iterate through all known airports in the service
+    for info in service.search_index:
+        if info.city == target_city or info.iata == target_city: 
+            continue
 
-        coords = AIRPORT_COORDS.get(iata)
-        if coords:
-            dist = haversine_distance(target_coords, coords)
-            if dist < min_dist:
-                min_dist = dist
-                nearest_city = city
+        coords = (info.lat, info.lon)
+        dist = haversine_distance(target_coords, coords)
+        if dist < min_dist:
+            min_dist = dist
+            nearest_city = info.city
 
     return nearest_city, min_dist
 

@@ -1,6 +1,40 @@
 {% extends "layout.html" %}
 
 {% block content %}
+<style>
+    .autocomplete-results {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        z-index: 1050;
+        max-height: 250px;
+        overflow-y: auto;
+    }
+
+    .autocomplete-item {
+        padding: 10px 15px;
+        cursor: pointer;
+        border-bottom: 1px solid #eee;
+    }
+
+    .autocomplete-item:last-child {
+        border-bottom: none;
+    }
+
+    .autocomplete-item:hover {
+        background-color: #f8f9fa;
+        color: #0d6efd;
+    }
+
+    .autocomplete-item .small {
+        font-size: 0.8em;
+        display: block;
+    }
+</style>
 <div class="row">
     <!-- Config Panel -->
     <div class="col-md-4 mb-4">
@@ -26,7 +60,7 @@
                         <input type="date" class="form-control" name="start_date" id="startDate" required>
                     </div>
 
-                     <div class="mb-3">
+                    <div class="mb-3">
                         <label class="form-label">Fonte de Dados</label>
                         <select class="form-select" id="dataProvider" name="provider">
                             <option value="Mock Data" selected>Mocks</option>
@@ -51,19 +85,25 @@
                         </div>
                     </div>
 
-                    <div class="mb-3">
+                    <div class="mb-3 position-relative">
                         <label class="form-label">Origens (sep. vírgula)</label>
-                        <input type="text" class="form-control" name="origin_cities" value="São Paulo" required>
+                        <input type="text" class="form-control autocomplete-location" name="origin_cities"
+                            value="São Paulo" required autocomplete="off">
+                        <div class="autocomplete-results shadow-sm d-none"></div>
                     </div>
 
-                    <div class="mb-3">
+                    <div class="mb-3 position-relative">
                         <label class="form-label">Destinos (sep. vírgula)</label>
-                        <input type="text" class="form-control" name="destination_cities" value="Miami" required>
+                        <input type="text" class="form-control autocomplete-location" name="destination_cities"
+                            value="Miami" required autocomplete="off">
+                        <div class="autocomplete-results shadow-sm d-none"></div>
                     </div>
 
-                    <div class="mb-3">
+                    <div class="mb-3 position-relative">
                         <label class="form-label">Cidades Obrigatórias</label>
-                        <input type="text" class="form-control" name="mandatory_cities" placeholder="Opcional">
+                        <input type="text" class="form-control autocomplete-location" name="mandatory_cities"
+                            placeholder="Opcional" autocomplete="off">
+                        <div class="autocomplete-results shadow-sm d-none"></div>
                     </div>
 
                     <hr>
@@ -120,7 +160,9 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body" id="itineraryModalBody">
-                <div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
@@ -385,6 +427,12 @@
             const depTime = fmtTime(flight.departure_time);
             const arrTime = fmtTime(flight.arrival_time);
 
+            // Book link if available in details
+            let detailsDisplay = `<span class="badge bg-secondary">${flight.stops || 0} paradas</span>`;
+            if (flight.details && flight.details.startsWith('http')) {
+                detailsDisplay += `<br><a href="${flight.details}" target="_blank" class="btn btn-sm btn-outline-primary mt-1">Ver Voo ↗</a>`;
+            }
+
             rows += `
                 <tr class="${rowClass}" style="cursor: pointer;" onclick="showAlternatives('${leg.origin}-${leg.destination}')" title="Clique para ver alternativas">
                     <td><strong>${leg.origin}</strong> <br> <small class="text-muted">➝ ${leg.destination}</small></td>
@@ -393,7 +441,7 @@
                     <td>${arrTime}</td>
                     <td>${leg.duration} min</td>
                     <td>R$ ${leg.price.toFixed(2)}</td>
-                    <td><span class="badge bg-secondary">${flight.stops || 0} paradas</span></td>
+                    <td>${detailsDisplay}</td>
                 </tr>
             `;
 
@@ -511,7 +559,7 @@
                   <div class="card-body">
                     <h5 class="card-title">Resumo</h5>
                     <p><strong>Custo total:</strong> R$ ${data.total_cost.toFixed(2)}</p>
-                    <p><strong>Tempo total:</strong> ${(data.total_duration/60).toFixed(1)}h</p>
+                    <p><strong>Tempo total:</strong> ${(data.total_duration / 60).toFixed(1)}h</p>
                   </div>
                 </div>
                 <div class="card"><div class="card-body"><h5>Trechos</h5><div class="table-responsive"><table class="table"><thead><tr><th>Origem</th><th>Destino</th><th>Cia</th><th>Partida</th><th>Chegada</th><th>Preço</th></tr></thead><tbody>`;
@@ -709,6 +757,81 @@
         // Key is "Origin-Dest". Logic above creates keys in undefined order, but we can match text content or ID if we made it predictable.
         // For now, simply switching tab is enough since all are listed.
     };
+
+    // Advanced Location Autocomplete with Keyboard Support
+    document.querySelectorAll('.autocomplete-location').forEach(input => {
+        const resultsDiv = input.parentElement.querySelector('.autocomplete-results');
+        let selectedIndex = -1;
+
+        input.addEventListener('keydown', (e) => {
+            const items = resultsDiv.querySelectorAll('.autocomplete-item');
+            if (e.key === 'ArrowDown') {
+                selectedIndex = (selectedIndex + 1) % items.length;
+                updateSelection(items);
+                e.preventDefault();
+            } else if (e.key === 'ArrowUp') {
+                selectedIndex = (selectedIndex - 1 + items.length) % items.length;
+                updateSelection(items);
+                e.preventDefault();
+            } else if (e.key === 'Enter' && selectedIndex >= 0) {
+                items[selectedIndex].click();
+                e.preventDefault();
+            }
+        });
+
+        function updateSelection(items) {
+            items.forEach((item, idx) => {
+                item.classList.toggle('bg-light', idx === selectedIndex);
+                if (idx === selectedIndex) item.scrollIntoView({ block: 'nearest' });
+            });
+        }
+
+        input.addEventListener('input', async (e) => {
+            const pieces = e.target.value.split(',');
+            const currentQuery = pieces.pop().trim();
+            selectedIndex = -1;
+
+            if (currentQuery.length < 2) {
+                resultsDiv.classList.add('d-none');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/locations/search?q=${encodeURIComponent(currentQuery)}`);
+                const data = await res.json();
+
+                resultsDiv.innerHTML = '';
+                if (data.length === 0) {
+                    resultsDiv.innerHTML = '<div class="p-2 text-muted small">Nenhum aeroporto encontrado</div>';
+                    resultsDiv.classList.remove('d-none');
+                    return;
+                }
+
+                resultsDiv.classList.remove('d-none');
+                data.forEach(loc => {
+                    const item = document.createElement('div');
+                    item.className = 'autocomplete-item';
+                    item.innerHTML = `
+                        <strong>${loc.city} (${loc.iata})</strong>
+                        <span class="small text-muted">${loc.name}, ${loc.country}</span>
+                    `;
+                    item.addEventListener('click', () => {
+                        pieces.push(loc.iata);
+                        input.value = pieces.join(', ').trim() + ', ';
+                        resultsDiv.classList.add('d-none');
+                        input.focus();
+                    });
+                    resultsDiv.appendChild(item);
+                });
+            } catch (err) { console.error(err); }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!input.contains(e.target) && !resultsDiv.contains(e.target)) {
+                resultsDiv.classList.add('d-none');
+            }
+        });
+    });
 </script>
 <!-- Load Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

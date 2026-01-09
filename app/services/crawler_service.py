@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import List
 from app.schemas.travel import Flight, Hotel, CarRental
+from app.services.location_service import get_location_service
 
 # Try importing Selenium
 try:
@@ -255,22 +256,84 @@ class AmadeusCrawler(BaseCrawler):
         return []
 
     def _get_iata(self, city_name: str) -> str:
-        mapping = {
-            "São Paulo": "GRU", "Sao Paulo": "GRU",
-            "Rio de Janeiro": "GIG",
-            "Belo Horizonte": "CNF",
-            "Brasília": "BSB", "Brasilia": "BSB",
-            "Salvador": "SSA", "Curitiba": "CWB",
-            "Florianópolis": "FLN", "Florianopolis": "FLN",
-            "Miami": "MIA", "Orlando": "MCO",
-            "New York": "JFK", "Chicago": "ORD",
-            "Las Vegas": "LAS", "Los Angeles": "LAX", "San Francisco": "SFO",
-            "Paris": "CDG", "London": "LHR"
-        }
-        return mapping.get(city_name, "GRU")
+        return get_location_service().resolve_iata(city_name)
+
+import requests
+import logging
+
+logger = logging.getLogger(__name__)
+
+class FlightCrawlerProxy(BaseCrawler):
+    """
+    Proxy crawler that delegates flight searches to the flight-crawler microservice on port 8001.
+    """
+    def __init__(self, scraper_name: str):
+        self.scraper_name = scraper_name.lower().replace(" ", "_")
+        self.base_url = "http://localhost:8001/api/v1/crawl"
+
+    def fetch_flights(self, origin: str, destinations: List[str], date: datetime, adults: int = 1, children: int = 0) -> List[Flight]:
+        try:
+            search_inputs = []
+            origin_iata = self._get_iata(origin)
+            
+            for dest in destinations:
+                dest_iata = self._get_iata(dest)
+                search_inputs.append({
+                    "origin": origin_iata,
+                    "destination": dest_iata,
+                    "departure_date": date.strftime("%Y-%m-%d"),
+                    "passengers": adults + children,
+                    "scrapers": [self.scraper_name]
+                })
+
+            response = requests.post(self.base_url, json=search_inputs, timeout=120)
+            response.raise_for_status()
+            
+            result_data = response.json()
+            if result_data.get("status") != "success":
+                logger.error(f"FlightCrawler error: {result_data}")
+                return []
+
+            flights = []
+            results = result_data.get("data", {})
+            scraper_key = self.scraper_name
+            if scraper_key not in results:
+                scraper_key = next((k for k in results.keys() if self.scraper_name in k.lower()), None)
+
+            if scraper_key and scraper_key in results:
+                for f in results[scraper_key]:
+                    flights.append(Flight(
+                        origin=origin,
+                        destination=f.get("destination_name", destinations[0]), 
+                        price=float(f.get("price", 0)),
+                        duration_minutes=int(f.get("duration_minutes", 0)) or 180,
+                        airline=f.get("airline", "N/A"),
+                        departure_time=datetime.fromisoformat(f.get("departure_time")),
+                        arrival_time=datetime.fromisoformat(f.get("arrival_time")),
+                        stops=f.get("stops", 0),
+                        baggage=f.get("baggage", "N/A"),
+                        flight_number=f.get("flight_number", "N/A"),
+                        details=f.get("deep_link", "")
+                    ))
+            
+            return flights
+        except Exception as e:
+            logger.error(f"Error calling FlightCrawler for {self.scraper_name}: {e}")
+            return []
+
+    def _get_iata(self, city_name: str) -> str:
+        return get_location_service().resolve_iata(city_name)
+
+    def fetch_hotels(self, cities: List[str]) -> List[Hotel]:
+        return []
+
+    def fetch_car_rentals(self, cities: List[str]) -> List[CarRental]:
+        return []
 
 def get_crawler(provider: str = "Mock Data", key: str = None, secret: str = None) -> BaseCrawler:
     if provider == "Amadeus API" and key and secret:
         return AmadeusCrawler(key, secret)
+    elif provider in ["Kayak", "Google Flights"]:
+        return FlightCrawlerProxy(provider)
     # Default to Mock
     return MockCrawler()
