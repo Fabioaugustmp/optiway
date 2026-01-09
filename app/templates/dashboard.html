@@ -362,7 +362,57 @@
                 msg += `<div class="alert alert-info">💡 <strong>Sugestão:</strong> ${data.warning_message}</div>`;
             }
             container.innerHTML = msg;
-            return;
+
+            // Allow partial rendering if we have alternatives, hotels, or cars
+            if (!data.itinerary || data.itinerary.length === 0) {
+                let hasFallback = false;
+                let fallbackHtml = '<div class="mt-4">';
+
+                // Alternatives (Flights)
+                if (data.alternatives && Object.keys(data.alternatives).length > 0) {
+                    hasFallback = true;
+                    renderAlternatives(data.alternatives);
+                    fallbackHtml += `<h5>✈️ Opções de Voos Encontradas</h5><div id="alternativesFallback"></div>`;
+                }
+
+                // Cars
+                if (data.cars_found && data.cars_found.length > 0) {
+                    hasFallback = true;
+                    fallbackHtml += `<h5 class="mt-4">🚗 Carros Encontrados</h5>
+                                      <div class="row row-cols-1 row-cols-md-3 g-3">`;
+                    data.cars_found.forEach(car => {
+                        fallbackHtml += `
+                            <div class="col">
+                                <div class="card h-100 border-success shadow-sm">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <h6 class="card-title text-success mb-0">
+                                                ${car.model}
+                                            </h6>
+                                            <span class="badge bg-success">R$ ${car.price_per_day.toFixed(2)}</span>
+                                        </div>
+                                        <p class="card-text small text-muted mb-3"><i class="bi bi-building"></i> ${car.company} | ${car.city}</p>
+                                        ${car.deep_link ? `<a href="${car.deep_link}" target="_blank" class="btn btn-sm btn-outline-success w-100">Alugar ↗</a>` : ''}
+                                    </div>
+                                </div>
+                            </div>`;
+                    });
+                    fallbackHtml += `</div>`;
+                }
+
+                if (hasFallback) {
+                    container.innerHTML += fallbackHtml + '</div>';
+
+                    // Move rendered element to fallback container logic
+                    setTimeout(() => {
+                        if (document.getElementById('alternativesContainer') && document.getElementById('alternativesFallback')) {
+                            document.getElementById('alternativesFallback').innerHTML = document.getElementById('alternativesContainer').innerHTML;
+                        }
+                    }, 150);
+                }
+
+                return;
+            }
         }
 
         // Check for Hybrid Route (Car segments)

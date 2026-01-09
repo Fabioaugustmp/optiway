@@ -278,6 +278,7 @@ def solve_trip(
     
     result.alternatives = alternatives_map
     result.hotels_found = hotels
+    result.cars_found = cars
 
     return result
 

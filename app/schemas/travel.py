@@ -83,3 +83,4 @@ class SolverResult(BaseModel):
     alternatives: Optional[dict] = None # Key: "Origin-Destination", Value: List[Flight]
     cost_breakdown: Optional[dict] = None
     hotels_found: Optional[List[Hotel]] = []
+    cars_found: Optional[List[CarRental]] = []

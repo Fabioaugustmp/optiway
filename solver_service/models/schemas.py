@@ -96,6 +96,7 @@ class SolveResponseSchema(BaseModel):
     alternatives: Optional[Dict[str, List[FlightSchema]]] = None
     cost_breakdown: Optional[Dict[str, float]] = None
     hotels_found: Optional[List[HotelSchema]] = []
+    cars_found: Optional[List[CarRentalSchema]] = []
 
     class Config:
         from_attributes = True
