@@ -163,7 +163,7 @@ O "cérebro" matemático. Recebe um grafo ponderado e aplica algoritmos de Pesqu
 
 | Foto | Nome |  GitHub |
 |:---:|:---|:---|
-| ![Fabioaugustmp](https://github.com/Fabioaugustmp.png?size=50) | **Fabio A. M. Paula |[@Fabioaugustmp](https://github.com/Fabioaugustmp) |
+| ![Fabioaugustmp](https://github.com/Fabioaugustmp.png?size=50) | **Fabio A. M. Paula** |[@Fabioaugustmp](https://github.com/Fabioaugustmp) |
 | ![ficheles](https://github.com/ficheles.png?size=50) | **Rafael F. Costa**  | [@Ficheles](https://github.com/ficheles) |
 | ![NascimentoRaony](https://github.com/NascimentoRaony.png?size=50) | **Raony N. Nogueira**  | [@NascimentoRaony](https://github.com/NascimentoRaony) |
 
