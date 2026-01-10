@@ -158,3 +158,14 @@ O "cérebro" matemático. Recebe um grafo ponderado e aplica algoritmos de Pesqu
 1.  **Miller, C. E., Tucker, A. W., & Zemlin, R. A.** (1960). *Integer programming formulation of traveling salesman problems*. Journal of the ACM.
 2.  **Dantzig, G. B., Fulkerson, D. R., & Johnson, S. M.** (1954). *Solution of a large-scale traveling-salesman problem*. Operations Research.
 3.  **Toth, P., & Vigo, D.** (2014). *Vehicle Routing: Problems, Methods, and Applications*. SIAM.
+
+## 👥 Equipe
+
+| Foto | Nome |  GitHub |
+|:---:|:---|:---|
+| ![Fabioaugustmp](https://github.com/Fabioaugustmp.png?size=50) | **Fabio A. M. Paula |[@Fabioaugustmp](https://github.com/Fabioaugustmp) |
+| ![ficheles](https://github.com/ficheles.png?size=50) | **Rafael F. Costa**  | [@Ficheles](https://github.com/ficheles) |
+| ![NascimentoRaony](https://github.com/NascimentoRaony.png?size=50) | **Raony N. Nogueira**  | [@NascimentoRaony](https://github.com/NascimentoRaony) |
+
+---
+
