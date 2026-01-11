@@ -1,12 +1,13 @@
 """
 Travel Itinerary Solver - Core optimization logic
-Uses PuLP for TSP formulation with cost/time trade-off
+Uses NSGA-II multi-objective optimization for cost/time trade-off
 """
 
-from pulp import *
 import numpy as np
 import logging
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Callable
+from deap import base, creator, tools, algorithms
+import random
 from solver_service.models.schemas import (
     FlightSchema,
     HotelSchema,
@@ -18,6 +19,224 @@ from solver_service.models.schemas import (
 
 logger = logging.getLogger(__name__)
 
+# NSGA-II Configuration
+POPULATION_SIZE = 100
+GENERATIONS = 50
+CXPB = 0.8  # Crossover probability
+MUTPB = 0.2  # Mutation probability
+ELITE_SIZE = 5  # Number of Pareto-optimal solutions to keep
+
+
+# NSGA-II Global Context (thread-safe storage)
+class SolverContext:
+    """Stores solver state for fitness evaluation"""
+    def __init__(self):
+        self.all_cities = []
+        self.city_map = {}
+        self.cost_matrix = None
+        self.time_matrix = None
+        self.flight_data = {}
+        self.hotel_costs = {}
+        self.request = None
+        self.n = 0
+    
+    def reset(self):
+        self.all_cities = []
+        self.city_map = {}
+        self.cost_matrix = None
+        self.time_matrix = None
+        self.flight_data = {}
+        self.hotel_costs = {}
+        self.request = None
+        self.n = 0
+
+
+_context = SolverContext()
+
+
+def _is_valid_tour(individual: List[int]) -> bool:
+    """
+    Validate if a tour respects constraints:
+    - Starts from an origin city
+    - Visits all mandatory and destination cities
+    - Ends at a destination city
+    """
+    if len(individual) < 2 or len(individual) != _context.n:
+        return False
+    
+    start_city = _context.all_cities[individual[0]]
+    end_city = _context.all_cities[individual[-1]]
+    visited = set(individual)
+    
+    # Check start is origin
+    if start_city not in _context.request.origin_cities:
+        return False
+    
+    # Check end is destination (or same for round trip)
+    if _context.request.is_round_trip:
+        if end_city not in _context.request.origin_cities:
+            return False
+    else:
+        if end_city not in _context.request.destination_cities:
+            return False
+    
+    # Check all mandatory and destination cities are visited
+    required_cities = set(_context.request.mandatory_cities + _context.request.destination_cities)
+    required_indices = {_context.city_map[city] for city in required_cities if city in _context.city_map}
+    
+    return required_indices.issubset(visited)
+
+
+def _evaluate_tour(individual: List[int]) -> Tuple[float, float]:
+    """
+    Evaluate fitness (multi-objective):
+    - Objective 1: Total cost (flight + hotel)
+    - Objective 2: Total duration (time)
+    
+    Returns: (total_cost, total_duration)
+    """
+    if not _is_valid_tour(individual):
+        # Penalty for invalid tours
+        return (1e10, 1e10)
+    
+    total_cost = 0.0
+    total_duration = 0
+    total_pax = _context.request.pax_adults + _context.request.pax_children
+    if total_pax < 1:
+        total_pax = 1
+    
+    try:
+        # Calculate flight costs and duration
+        for idx in range(len(individual) - 1):
+            i = individual[idx]
+            j = individual[idx + 1]
+            
+            flight_cost = _context.cost_matrix[i, j]
+            flight_duration = _context.time_matrix[i, j]
+            
+            # Check if route is possible
+            if flight_cost >= 999999:
+                return (1e10, 1e10)
+            
+            total_cost += flight_cost * total_pax
+            total_duration += int(flight_duration)
+        
+        # Add hotel costs for all visited cities (except last)
+        for idx in range(len(individual) - 1):
+            city_idx = individual[idx]
+            city = _context.all_cities[city_idx]
+            hotel_cost = _context.hotel_costs.get(city, 0.0)
+            total_cost += hotel_cost * _context.request.stay_days_per_city
+        
+        # Return positive costs; DEAP uses weights to minimize
+        return (total_cost, total_duration)
+    
+    except Exception as e:
+        logger.error(f"Error evaluating tour: {str(e)}")
+        return (1e10, 1e10)
+
+
+def _create_individual() -> List[int]:
+    """Create a random valid individual (permutation)"""
+    max_attempts = 100
+    for _ in range(max_attempts):
+        # Start with a random permutation
+        individual = list(range(_context.n))
+        random.shuffle(individual)
+        
+        if _is_valid_tour(individual):
+            return individual
+    
+    # Fallback: create a greedy tour
+    return _create_greedy_individual()
+
+
+def _create_greedy_individual() -> List[int]:
+    """Create a greedy tour starting from first origin city"""
+    # Find first origin city
+    start_idx = None
+    for i, city in enumerate(_context.all_cities):
+        if city in _context.request.origin_cities:
+            start_idx = i
+            break
+    
+    if start_idx is None:
+        start_idx = 0
+    
+    # Start with origin
+    tour = [start_idx]
+    unvisited = set(range(_context.n)) - {start_idx}
+    
+    # Greedily add nearest unvisited cities
+    while unvisited:
+        current = tour[-1]
+        nearest = min(
+            unvisited,
+            key=lambda x: _context.cost_matrix[current, x] if _context.cost_matrix[current, x] < 999999 else float('inf')
+        )
+        
+        if _context.cost_matrix[current, nearest] >= 999999:
+            # If no valid connection, just add remaining cities in order
+            tour.extend(sorted(unvisited))
+            break
+        
+        tour.append(nearest)
+        unvisited.remove(nearest)
+    
+    return tour
+
+
+def _mutate_swap(individual: List[int], indpb: float = 0.2) -> Tuple[List[int]]:
+    """Swap mutation - randomly swap two cities in the tour"""
+    for i in range(len(individual)):
+        if random.random() < indpb:
+            j = random.randint(0, len(individual) - 1)
+            individual[i], individual[j] = individual[j], individual[i]
+    
+    return (individual,)
+
+
+def _mutate_insert(individual: List[int], indpb: float = 0.2) -> Tuple[List[int]]:
+    """Insert mutation - remove a city and reinsert it elsewhere"""
+    if random.random() < indpb and len(individual) > 2:
+        i = random.randint(0, len(individual) - 1)
+        j = random.randint(0, len(individual) - 1)
+        individual.insert(j, individual.pop(i))
+    
+    return (individual,)
+
+
+def _crossover_ox(parent1: List[int], parent2: List[int]) -> Tuple[List[int], List[int]]:
+    """Order Crossover (OX) - TSP-specific crossover operator"""
+    size = len(parent1)
+    a, b = sorted([random.randint(0, size - 1), random.randint(0, size - 1)])
+    
+    # Extract segment from parent1
+    child1 = [None] * size
+    child1[a:b] = parent1[a:b]
+    
+    # Fill remaining from parent2
+    ptr = b
+    for city in parent2[b:] + parent2[:b]:
+        if city not in child1:
+            if ptr >= size:
+                ptr = 0
+            child1[ptr] = city
+            ptr += 1
+    
+    # Repeat for child2
+    child2 = [None] * size
+    child2[a:b] = parent2[a:b]
+    ptr = b
+    for city in parent1[b:] + parent1[:b]:
+        if city not in child2:
+            if ptr >= size:
+                ptr = 0
+            child2[ptr] = city
+            ptr += 1
+    # Wrap back into Individual to preserve fitness attribute expected by DEAP
+    return (creator.Individual(child1), creator.Individual(child2))
+
 
 def solve_itinerary(
     request: TravelRequestSchema,
@@ -26,8 +245,9 @@ def solve_itinerary(
     cars: List[CarRentalSchema]
 ) -> SolveResponseSchema:
     """
-    Solve multi-city travel itinerary optimization problem.
-    Uses TSP with MTZ constraints and weight-based cost/time trade-off.
+    Solve multi-city travel itinerary optimization problem using NSGA-II.
+    Multi-objective optimization: minimizes cost AND duration simultaneously.
+    Returns a single best solution based on Pareto frontier.
     
     Args:
         request: Travel requirements and preferences
@@ -39,7 +259,7 @@ def solve_itinerary(
         Optimized itinerary with status and cost breakdown
     """
     
-    logger.info("Starting solver...")
+    logger.info("Starting NSGA-II solver...")
     
     try:
         # 1. Consolidate Cities
@@ -54,7 +274,7 @@ def solve_itinerary(
             req_cities.add(f.origin)
             req_cities.add(f.destination)
         
-        all_cities = list(req_cities)
+        all_cities = sorted(list(req_cities))
         n = len(all_cities)
         
         if n < 2:
@@ -89,183 +309,139 @@ def solve_itinerary(
             if h.city in hotel_costs:
                 hotel_costs[h.city] = h.price_per_night
         
-        # 3. Create PuLP Model
-        prob = LpProblem("Travel_Optimization", LpMinimize)
+        # 3. Setup NSGA-II Global Context
+        _context.reset()
+        _context.all_cities = all_cities
+        _context.city_map = city_map
+        _context.cost_matrix = cost_matrix
+        _context.time_matrix = time_matrix
+        _context.flight_data = flight_data
+        _context.hotel_costs = hotel_costs
+        _context.request = request
+        _context.n = n
         
-        # Decision variables
-        x = LpVariable.dicts(
-            "x",
-            [(i, j) for i in range(n) for j in range(n) if i != j],
-            cat='Binary'
+        # 4. Setup DEAP Framework for Multi-Objective Optimization
+        # Clear any existing definitions
+        if hasattr(creator, "FitnessMin"):
+            del creator.FitnessMin
+        if hasattr(creator, "Individual"):
+            del creator.Individual
+        
+        # Create fitness and individual classes
+        creator.create("FitnessMin", base.Fitness, weights=(-1.0, -1.0))  # Minimize both objectives
+        creator.create("Individual", list, fitness=creator.FitnessMin)
+        
+        toolbox = base.Toolbox()
+        
+        # Register genetic operators
+        toolbox.register("individual", tools.initIterate, creator.Individual, _create_individual)
+        toolbox.register("population", tools.initRepeat, list, toolbox.individual)
+        toolbox.register("evaluate", _evaluate_tour)
+        toolbox.register("mate", _crossover_ox)
+        toolbox.register("mutate", _mutate_swap, indpb=0.3)
+        # Selection operator required by eaSimple; NSGA-II non-dominated selection
+        toolbox.register("select", tools.selNSGA2)
+    
+        # Note: Constraint validation is handled in _evaluate_tour through fitness penalties
+        
+        # 5. Create initial population
+        pop = toolbox.population(n=POPULATION_SIZE)
+        
+        # Evaluate initial population
+        fitnesses = list(map(toolbox.evaluate, pop))
+        for ind, fit in zip(pop, fitnesses):
+            ind.fitness.values = fit
+        
+        logger.info(f"Initial population: {len(pop)} individuals")
+        
+        # 6. Run NSGA-II Algorithm
+        stats = tools.Statistics(lambda ind: ind.fitness.values)
+        stats.register("avg", np.mean, axis=0)
+        stats.register("std", np.std, axis=0)
+        stats.register("min", np.min, axis=0)
+        stats.register("max", np.max, axis=0)
+        
+        logbook = tools.Logbook()
+        logbook.header = ['gen', 'nevals'] + stats.fields
+        
+        pop, logbook = algorithms.eaSimple(
+            pop, toolbox,
+            cxpb=CXPB,
+            mutpb=MUTPB,
+            ngen=GENERATIONS,
+            stats=stats,
+            verbose=False
         )
-        u = LpVariable.dicts("u", range(n), lowBound=0, upBound=n, cat='Continuous')
         
-        # Start and end nodes
-        is_start = LpVariable.dicts("is_start", range(n), cat='Binary')
-        is_end = LpVariable.dicts("is_end", range(n), cat='Binary')
+        # 7. Extract Pareto Front
+        from deap import tools as deap_tools
+        pareto_front = deap_tools.sortNondominated(pop, len(pop), first_front_only=True)[0]
         
-        # 4. Objective Function
-        total_pax = request.pax_adults + request.pax_children
-        if total_pax < 1:
-            total_pax = 1
+        logger.info(f"Pareto front size: {len(pareto_front)}")
         
-        obj_terms = []
+        if not pareto_front:
+            return SolveResponseSchema(
+                status="Infeasible",
+                itinerary=[],
+                total_cost=0,
+                total_duration=0,
+                warning_message="No feasible solution found"
+            )
         
-        for i in range(n):
-            for j in range(n):
-                if i == j:
-                    continue
-                
-                f_cost = cost_matrix[i, j]
-                if f_cost >= M:
-                    prob += x[i, j] == 0  # Force invalid edge to 0
-                    continue  # Skip invalid routes
-                
-                # Calculate total cost for this edge
-                unit_hotel_cost = hotel_costs.get(all_cities[j], 0)
-                unit_daily_cost = request.daily_cost_per_person
-                days = request.stay_days_per_city
-                
-                stay_cost = (unit_hotel_cost * days) + (unit_daily_cost * days * total_pax)
-                total_money = (f_cost * total_pax) + stay_cost
-                total_minutes = time_matrix[i, j]
-                
-                term = x[i, j] * (
-                    request.weight_cost * total_money +
-                    request.weight_time * total_minutes
-                )
-                obj_terms.append(term)
-        
-        prob += lpSum(obj_terms), "Total_Cost"
-        
-        # 5. Constraints
-        
-        # Origin constraints
-        for i, city in enumerate(all_cities):
-            if city not in request.origin_cities:
-                prob += is_start[i] == 0
-        
-        # Destination constraints
-        if request.is_round_trip:
-            for i, city in enumerate(all_cities):
-                if city not in request.origin_cities:
-                    prob += is_end[i] == 0
-            
-            # Start and end must be the same city for round trip
-            for i in range(n):
-                prob += is_start[i] == is_end[i]
+        # 8. Select best solution from Pareto front
+        # Strategy: choose solution with best cost if weight_cost > weight_time
+        # Otherwise, choose solution with best time
+        if request.weight_cost > request.weight_time:
+            best_individual = min(pareto_front, key=lambda x: abs(x.fitness.values[0]))
         else:
-            for i, city in enumerate(all_cities):
-                if city not in request.destination_cities:
-                    prob += is_end[i] == 0
+            best_individual = min(pareto_front, key=lambda x: abs(x.fitness.values[1]))
         
-        # Exactly one start and one end
-        prob += lpSum([is_start[i] for i in range(n)]) == 1
-        prob += lpSum([is_end[i] for i in range(n)]) == 1
-        
-        # Flow conservation
-        for k in range(n):
-            outflow = lpSum([x[k, j] for j in range(n) if k != j])
-            inflow = lpSum([x[i, k] for i in range(n) if i != k])
-            prob += outflow - inflow == is_start[k] - is_end[k]
-
-        # 5. Mandatory Visits
-        # We must visit ALL destination cities and ALL mandatory cities
-        cities_to_visit = set(request.destination_cities + request.mandatory_cities)
-        
-        for i, city in enumerate(all_cities):
-            if city in cities_to_visit:
-                # To be "visited", a city must have an inflow (or be the starting point)
-                # Inflow + is_start >= 1 ensures the city is part of the path
-                inflow = lpSum([x[j, i] for j in range(n) if i != j])
-                prob += inflow + is_start[i] >= 1
-                
-                # Also must have outflow (or be the end point)
-                outflow = lpSum([x[i, j] for j in range(n) if i != j])
-                prob += outflow + is_end[i] >= 1
-
-        # 6. Miller-Tucker-Zemlin subtour elimination
-        # This prevents isolated loops that are not connected to the start/end path
-        for i in range(n):
-            for j in range(n):
-                if i != j:
-                    prob += u[i] - u[j] + n * x[i, j] <= n - 1
-        
-        # 6. Solve
-        prob.solve(PULP_CBC_CMD(msg=0))
-        
-        status = LpStatus[prob.status]
-        
-        # 7. Reconstruct Itinerary
+        # 9. Reconstruct Itinerary from Best Individual
         itinerary = []
         total_cost_val = 0.0
         total_duration_val = 0
         cost_breakdown = {"flight": 0.0, "hotel": 0.0, "car": 0.0}
         
-        if status == 'Optimal':
-            # Find start node
-            start_node = -1
-            for i in range(n):
-                if value(is_start[i]) == 1:
-                    start_node = i
-                    break
+        total_pax = request.pax_adults + request.pax_children
+        if total_pax < 1:
+            total_pax = 1
+        
+        # Build itinerary from tour
+        for idx in range(len(best_individual) - 1):
+            i = best_individual[idx]
+            j = best_individual[idx + 1]
             
-            if start_node == -1:
-                logger.warning("Could not find start node in optimal solution")
-                return SolveResponseSchema(
-                    status="Infeasible",
-                    itinerary=[],
-                    total_cost=0,
-                    total_duration=0
-                )
+            flight = flight_data.get((i, j))
+            price = cost_matrix[i, j]
+            duration = int(time_matrix[i, j])
             
-            current = start_node
-            steps = 0
-            max_steps = n + 5
-            
-            while steps < max_steps:
-                # Find next hop
-                next_hop = -1
-                for j in range(n):
-                    if current != j and value(x[current, j]) == 1:
-                        next_hop = j
-                        break
-                
-                if next_hop == -1:
-                    break
-                
-                f = flight_data.get((current, next_hop))
-                price = cost_matrix[current, next_hop] if f is None else f.price
-                duration = time_matrix[current, next_hop] if f is None else f.duration_minutes
-                
-                # Create itinerary leg
+            if price < M:
                 leg = ItineraryLegSchema(
-                    origin=all_cities[current],
-                    destination=all_cities[next_hop],
-                    flight=f,
+                    origin=all_cities[i],
+                    destination=all_cities[j],
+                    flight=flight,
                     price=price,
-                    duration=int(duration),
+                    duration=duration,
                     price_formatted=f"R$ {price:.2f}"
                 )
                 itinerary.append(leg)
                 
-                total_cost_val += price
-                total_duration_val += int(duration)
-                cost_breakdown["flight"] += price
-                
-                current = next_hop
-                steps += 1
-                
-                # Stop if reached end node
-                if value(is_end[current]) == 1:
-                    break
+                total_cost_val += price * total_pax
+                total_duration_val += duration
+                cost_breakdown["flight"] += price * total_pax
         
-        # Add hotel costs to breakdown
-        for city in all_cities:
-            cost_breakdown["hotel"] += hotel_costs.get(city, 0) * request.stay_days_per_city
+        # Add hotel costs
+        for idx in range(len(best_individual) - 1):
+            city_idx = best_individual[idx]
+            city = all_cities[city_idx]
+            hotel_cost = hotel_costs.get(city, 0.0)
+            cost_breakdown["hotel"] += hotel_cost * request.stay_days_per_city
+            total_cost_val += hotel_cost * request.stay_days_per_city
+        
+        logger.info(f"Best solution - Cost: R$ {total_cost_val:.2f}, Duration: {total_duration_val} min")
         
         return SolveResponseSchema(
-            status=status,
+            status="Optimal",
             itinerary=itinerary,
             total_cost=total_cost_val,
             total_duration=total_duration_val,
