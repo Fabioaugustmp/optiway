@@ -12,11 +12,4 @@ pandas
 numpy
 plotly
 pulp
-selenium
-webdriver-manager
-beautifulsoup4
-lxml
-amadeus
-isodate
-python-dotenv
-requests
+deap
