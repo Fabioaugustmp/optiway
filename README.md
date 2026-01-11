@@ -6,6 +6,8 @@ Acesso: [LINK](https://github.com/Fabioaugustmp/optiway)
 
 ---
 
+[![OptiWay](docs/assets/optiway.gif)](docs/assets/optiway.gif)
+
 ## 1. Resumo
 
 O **OptiWay** é um sistema distribuído de suporte à decisão projetado para abordar a complexidade inerente ao Problema de Roteamento de Viagens Multi-Cidades (*Multi-City Travel Routing Problem*). Integrando técnicas avançadas de **Coleta de Dados Heterogêneos** (APIs e Web Scraping) e **Pesquisa Operacional** (Programação Linear Inteira Mista), a plataforma propõe a construção de itinerários multimodais ótimos. O sistema diferencia-se pela capacidade de resolver conflitos entre múltiplos objetivos — minimização de custos financeiros e redução do tempo total de viagem — através de uma abordagem baseada na fronteira de Pareto. A arquitetura de microsserviços assegura escalabilidade, robustez e a desacoplagem necessária para a manutenção de componentes críticos como o *crawler* de voos e o *solver* matemático.
